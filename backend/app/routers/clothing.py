@@ -24,10 +24,10 @@ async def create_clothing_item(
     current_user: CurrentUser,
 ):
     item = ClothingItem(
-    user_id=current_user.id,
-    name=clothing.name,
-    category=clothing.category,
-    color=clothing.color,
+        user_id=current_user.id,
+        name=clothing.name,
+        category=clothing.category,
+        color=clothing.color,
     )
     db.add(item)
     await db.commit()
@@ -42,8 +42,12 @@ async def create_clothing_item(
 )
 async def get_clothing_items(
     db: DBSession,
+    current_user: CurrentUser,
 ):
-    result = await db.execute(select(ClothingItem))
+    result = await db.execute(
+        select(ClothingItem).where(ClothingItem.user_id == current_user.id)
+    )
+
     return result.scalars().all()
 
 
@@ -54,13 +58,16 @@ async def get_clothing_items(
 async def get_clothing_item(
     clothing_id: UUID,
     db: DBSession,
+    current_user: CurrentUser,
 ):
     item = await db.get(ClothingItem, clothing_id)
-    if item is None:
+
+    if item is None or item.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Clothing not found",
+            detail="Clothing item not found",
         )
+
     return item
 
 
@@ -71,10 +78,11 @@ async def get_clothing_item(
 async def delete_clothing_item(
     clothing_id: UUID,
     db: DBSession,
+    current_user:CurrentUser,
 ):
     item = await db.get(ClothingItem, clothing_id)
 
-    if item is None:
+    if item is None or item.user_id != current_user.id:
         raise HTTPException(
             status_code=404,
             detail="clothing item not found",
