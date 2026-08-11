@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>AI Wardrobe</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+
+        <div class="logo">
+            ✦ AI Wardrobe
+        </div>
+
+        <div class="nav-right">
+            <button id="logout-btn">
+                Logout
+            </button>
+        </div>
+
+    </nav>
+
+
+    <main class="container">
+
+        <section class="header-section">
+
+            <div>
+                <p class="eyebrow">
+                    YOUR COLLECTION
+                </p>
+
+                <h1>
+                    My Wardrobe
+                </h1>
+
+                <p class="subtitle">
+                    Organize your clothes and create better outfits.
+                </p>
+            </div>
+
+            <button
+                id="add-btn"
+                class="primary-btn"
+            >
+                + Add Clothing
+            </button>
+
+        </section>
+
+
+        <!-- Categories -->
+
+        <div class="categories">
+
+            <button
+                class="category active"
+                data-category="all"
+            >
+                All
+            </button>
+
+            <button
+                class="category"
+                data-category="upper"
+            >
+                Upper
+            </button>
+
+            <button
+                class="category"
+                data-category="lower"
+            >
+                Lower
+            </button>
+
+            <button
+                class="category"
+                data-category="shoes"
+            >
+                Shoes
+            </button>
+
+            <button
+                class="category"
+                data-category="accessories"
+            >
+                Accessories
+            </button>
+
+        </div>
+
+
+        <!-- Wardrobe -->
+
+        <section
+            id="clothing-grid"
+            class="clothing-grid"
+        >
+        </section>
+
+
+        <!-- Empty -->
+
+        <section
+            id="empty-state"
+            class="empty-state hidden"
+        >
+
+            <div class="empty-icon">
+                👕
+            </div>
+
+            <h2>
+                Your wardrobe is empty
+            </h2>
+
+            <p>
+                Add your first clothing item.
+            </p>
+
+            <button
+                class="primary-btn"
+                id="empty-add-btn"
+            >
+                Add Clothing
+            </button>
+
+        </section>
+
+    </main>
+
+
+    <!-- Add Clothing Modal -->
+
+    <div
+        id="modal"
+        class="modal hidden"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h2>
+                    Add Clothing
+                </h2>
+
+                <button id="close-modal">
+                    ×
+                </button>
+
+            </div>
+
+
+            <form id="clothing-form">
+
+                <label>
+                    Name
+                </label>
+
+                <input
+                    type="text"
+                    id="name"
+                    placeholder="Black T-Shirt"
+                    required
+                >
+
+
+                <label>
+                    Category
+                </label>
+
+                <select id="category">
+
+                    <option value="upper">
+                        Upper
+                    </option>
+
+                    <option value="lower">
+                        Lower
+                    </option>
+
+                    <option value="shoes">
+                        Shoes
+                    </option>
+
+                    <option value="accessories">
+                        Accessories
+                    </option>
+
+                </select>
+
+
+                <label>
+                    Color
+                </label>
+
+                <input
+                    type="text"
+                    id="color"
+                    placeholder="Black"
+                    required
+                >
+
+
+                <button
+                    type="submit"
+                    class="primary-btn submit-btn"
+                >
+                    Add Clothing
+                </button>
+
+
+                <p
+                    id="form-error"
+                    class="error"
+                ></p>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <script src="script.js"></script>
+
+</body>
+</html>
