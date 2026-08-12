@@ -287,7 +287,11 @@ function renderClothes() {
             card.innerHTML = `
 
                 <div class="clothing-image">
-                    👕
+                    ${
+                        item.image_url
+                            ? `<img src="${API_URL}${item.image_url}" alt="${item.name}">`
+                            : "👕"
+                    }
                 </div>
 
                 <div class="clothing-info">
@@ -304,6 +308,13 @@ function renderClothes() {
                         ${item.color}
                     </p>
 
+                    <button
+                        class="delete-btn"
+                        data-id="${item.id}"
+                    >
+                        Delete
+                    </button>
+
                 </div>
 
             `;
@@ -311,9 +322,77 @@ function renderClothes() {
 
             grid.appendChild(card);
 
+            const deleteButton =
+                card.querySelector(".delete-btn");
+
+            deleteButton.addEventListener(
+                "click",
+                () => {
+                    deleteClothing(item.id);
+                }
+            );
+
         }
     );
 
+}
+
+/* =========================
+   delete
+========================= */
+async function deleteClothing(clothingId) {
+
+    const token = getToken();
+
+    if (!token) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    const confirmed =
+        confirm("Are you sure you want to delete this clothing item?");
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        const response = await fetch(
+            `${API_URL}/clothing-items/${clothingId}`,
+            {
+                method: "DELETE",
+
+                headers: {
+                    Authorization:
+                        `Bearer ${token}`
+                }
+            }
+        );
+
+        if (response.status === 401) {
+
+            logout();
+
+            return;
+        }
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Failed to delete clothing"
+            );
+        }
+
+        await loadClothes();
+
+    } catch (error) {
+
+        console.error(error);
+
+        alert(error.message);
+
+    }
 }
 
 
@@ -435,28 +514,7 @@ if (form) {
 
             event.preventDefault();
 
-
-            const name =
-                document.getElementById(
-                    "name"
-                ).value;
-
-
-            const category =
-                document.getElementById(
-                    "category"
-                ).value;
-
-
-            const color =
-                document.getElementById(
-                    "color"
-                ).value;
-
-
-            const token =
-                getToken();
-
+            const token = getToken();
 
             if (!token) {
 
@@ -468,6 +526,10 @@ if (form) {
             }
 
 
+            const formData =
+                new FormData(form);
+
+
             try {
 
                 const response =
@@ -477,22 +539,11 @@ if (form) {
                             method: "POST",
 
                             headers: {
-
-                                "Content-Type":
-                                    "application/json",
-
                                 Authorization:
                                     `Bearer ${token}`
-
                             },
 
-                            body:
-                                JSON.stringify({
-                                    name: name,
-                                    category: category,
-                                    color: color
-                                })
-
+                            body: formData
                         }
                     );
 
@@ -512,8 +563,12 @@ if (form) {
                         await response.json();
 
                     throw new Error(
-                        data.detail ||
-                        "Failed to add clothing"
+                        JSON.stringify(
+                            data.detail ||
+                            "Failed to add clothing",
+                            null,
+                            2
+                        )
                     );
 
                 }
@@ -521,9 +576,7 @@ if (form) {
 
                 form.reset();
 
-
                 closeModalWindow();
-
 
                 await loadClothes();
 
@@ -534,7 +587,6 @@ if (form) {
                     document.getElementById(
                         "form-error"
                     );
-
 
                 if (formError) {
 
@@ -549,7 +601,6 @@ if (form) {
     );
 
 }
-
 
 /* =========================
    LOGOUT

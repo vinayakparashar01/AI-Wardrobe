@@ -172,6 +172,7 @@
                 <input
                     type="text"
                     id="name"
+                    name="name"
                     placeholder="Black T-Shirt"
                     required
                 >
@@ -181,7 +182,10 @@
                     Category
                 </label>
 
-                <select id="category">
+                <select
+                    id="category"
+                    name="category"
+                >
 
                     <option value="upper">
                         Upper
@@ -209,10 +213,22 @@
                 <input
                     type="text"
                     id="color"
+                    name="color"
                     placeholder="Black"
                     required
                 >
 
+
+                <label>
+                    Image
+                </label>
+
+                <input
+                    type="file"
+                    id="image"
+                    name="image"
+                    accept="image/*"
+                >
 
                 <button
                     type="submit"
