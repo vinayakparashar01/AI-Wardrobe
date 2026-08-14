@@ -104,6 +104,7 @@ let clothes = [];
 
 let selectedCategory = "all";
 
+let editingClothingId = null;
 
 /* =========================
    ELEMENTS
@@ -309,6 +310,13 @@ function renderClothes() {
                     </p>
 
                     <button
+                        class="edit-btn"
+                        data-id="${item.id}"
+                    >
+                        Edit
+                    </button>
+
+                    <button
                         class="delete-btn"
                         data-id="${item.id}"
                     >
@@ -321,6 +329,15 @@ function renderClothes() {
 
 
             grid.appendChild(card);
+
+            const editButton =
+                    card.querySelector(".edit-btn");
+            editButton.addEventListener(
+                "click",
+                ()=>{
+                    openEditModal(item);
+                }
+            );
 
             const deleteButton =
                 card.querySelector(".delete-btn");
@@ -470,6 +487,40 @@ function closeModalWindow() {
     );
 
 }
+function openEditModal(item) {
+
+    if (!modal || !form) {
+        return;
+    }
+
+    editingClothingId = item.id;
+
+    document.querySelector(
+        ".modal-header h2"
+    ).textContent = "Edit Clothing";
+
+    document.querySelector(
+        ".submit-btn"
+    ).textContent = "Save Changes";
+
+    document.getElementById(
+        "name"
+    ).value = item.name;
+
+    document.getElementById(
+        "category"
+    ).value = item.category;
+
+    document.getElementById(
+        "color"
+    ).value = item.color;
+
+    document.getElementById(
+        "form-error"
+    ).textContent = "";
+
+    modal.classList.remove("hidden");
+}
 
 
 if (addButton) {
@@ -517,23 +568,65 @@ if (form) {
             const token = getToken();
 
             if (!token) {
-
-                window.location.href =
-                    "login.html";
-
+                window.location.href = "login.html";
                 return;
-
             }
 
+            const name =
+                document.getElementById("name").value;
 
-            const formData =
-                new FormData(form);
+            const category =
+                document.getElementById("category").value;
+
+            const color =
+                document.getElementById("color").value;
 
 
             try {
 
-                const response =
-                    await fetch(
+                let response;
+
+
+                // =========================
+                // EDIT
+                // =========================
+
+                if (editingClothingId) {
+
+                    response = await fetch(
+                        `${API_URL}/clothing-items/${editingClothingId}`,
+                        {
+                            method: "PUT",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+
+                                Authorization:
+                                    `Bearer ${token}`
+                            },
+
+                            body: JSON.stringify({
+                                name: name,
+                                category: category,
+                                color: color
+                            })
+                        }
+                    );
+
+                }
+
+
+                // =========================
+                // ADD
+                // =========================
+
+                else {
+
+                    const formData =
+                        new FormData(form);
+
+                    response = await fetch(
                         `${API_URL}/clothing-items/`,
                         {
                             method: "POST",
@@ -547,6 +640,12 @@ if (form) {
                         }
                     );
 
+                }
+
+
+                // =========================
+                // RESPONSE
+                // =========================
 
                 if (response.status === 401) {
 
@@ -565,7 +664,7 @@ if (form) {
                     throw new Error(
                         JSON.stringify(
                             data.detail ||
-                            "Failed to add clothing",
+                            "Failed to save clothing",
                             null,
                             2
                         )
@@ -574,14 +673,45 @@ if (form) {
                 }
 
 
+                // Reset edit state
+
+                editingClothingId = null;
+
+
+                // Reset form
+
                 form.reset();
+
+
+                // Restore modal to Add mode
+
+                document.querySelector(
+                    ".modal-header h2"
+                ).textContent =
+                    "Add Clothing";
+
+                document.querySelector(
+                    ".submit-btn"
+                ).textContent =
+                    "Add Clothing";
+
+
+                document.getElementById(
+                    "form-error"
+                ).textContent = "";
+
 
                 closeModalWindow();
 
+
+                // Reload wardrobe
+
                 await loadClothes();
 
+            }
 
-            } catch (error) {
+
+            catch (error) {
 
                 const formError =
                     document.getElementById(

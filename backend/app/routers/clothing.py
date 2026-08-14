@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from app.core.auth import CurrentUser
 from app.db.database import get_db
 from app.models.clothing_item import ClothingItem
-from app.schemas.clothing_item import ClothingItemResponse
+from app.schemas.clothing_item import ClothingItemResponse, ClothingItemCreate
 from fastapi import (
     APIRouter,
     Depends,
@@ -149,3 +149,30 @@ async def delete_clothing_item(
     await db.delete(item)
 
     await db.commit()
+    
+@router.put(
+    "/{clothing_id}",
+    response_model=ClothingItemResponse,
+)
+async def update_clothing_item(
+    clothing_id: UUID,
+    clothing: ClothingItemCreate,
+    db:DBSession,
+    current_user:CurrentUser,
+):
+    item = await db.get(ClothingItem, clothing_id)
+    
+    if item is None or item.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Clothing item not found"
+        )
+    item.name= clothing.name
+    item.category=clothing.category
+    item.color=clothing.color
+    
+    await db.commit()
+    await db.refresh(item)
+    
+    return item
+    
