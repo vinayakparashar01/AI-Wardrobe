@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 from app.core.auth import CurrentUser
 from app.db.database import get_db
 from app.models.clothing_item import ClothingItem
-from app.schemas.clothing_item import ClothingItemResponse, ClothingItemCreate
+from app.schemas.clothing_item import ClothingItemResponse
 from fastapi import (
     APIRouter,
     Depends,
@@ -35,6 +35,17 @@ MEDIA_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
+
+
+def delete_image_file(image_url: str | None):
+    if not image_url:
+        return
+
+    filename = Path(image_url).name
+    file_path = Path("media") / filename
+
+    if file_path.exists():
+        file_path.unlink()
 
 
 @router.post(
@@ -146,33 +157,70 @@ async def delete_clothing_item(
             detail="Clothing item not found",
         )
 
+    image_url = item.image_url
+
     await db.delete(item)
 
     await db.commit()
-    
+
+    delete_image_file(image_url)
+
+
 @router.put(
     "/{clothing_id}",
     response_model=ClothingItemResponse,
 )
 async def update_clothing_item(
     clothing_id: UUID,
-    clothing: ClothingItemCreate,
-    db:DBSession,
-    current_user:CurrentUser,
+    db: DBSession,
+    current_user: CurrentUser,
+    name: Annotated[str, Form()],
+    category: Annotated[str, Form()],
+    color: Annotated[str, Form()],
+    image: Annotated[UploadFile | None, File()] = None,
 ):
     item = await db.get(ClothingItem, clothing_id)
-    
+
     if item is None or item.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Clothing item not found"
+            detail="Clothing item not found",
         )
-    item.name= clothing.name
-    item.category=clothing.category
-    item.color=clothing.color
-    
+
+    item.name = name
+    item.category = category
+    item.color = color
+
+    old_image_url = None
+
+    if image is not None:
+        if not image.content_type or not image.content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be an image",
+            )
+
+        old_image_url = item.image_url
+
+        file_extension = (
+            image.filename.split(".")[-1]
+            if image.filename and "." in image.filename
+            else "jpg"
+        )
+
+        new_filename = f"{uuid4()}.{file_extension}"
+
+        file_path = Path("media") / new_filename
+
+        with open(file_path, "wb") as buffer:
+            buffer.write(await image.read())
+
+        item.image_url = f"/media/{new_filename}"
+
     await db.commit()
     await db.refresh(item)
-    
+
+    if old_image_url:
+        delete_image_file(old_image_url)
+
     return item
-    

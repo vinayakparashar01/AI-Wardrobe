@@ -593,27 +593,47 @@ if (form) {
 
                 if (editingClothingId) {
 
+                    const formData = new FormData();
+
+                    formData.append(
+                        "name",
+                        name
+                    );
+
+                    formData.append(
+                        "category",
+                        category
+                    );
+
+                    formData.append(
+                        "color",
+                        color
+                    );
+
+                    const imageInput =
+                        document.getElementById("image");
+
+                    if (imageInput.files.length > 0) {
+
+                        formData.append(
+                            "image",
+                            imageInput.files[0]
+                        );
+                    }
+
                     response = await fetch(
                         `${API_URL}/clothing-items/${editingClothingId}`,
                         {
                             method: "PUT",
 
                             headers: {
-                                "Content-Type":
-                                    "application/json",
-
                                 Authorization:
                                     `Bearer ${token}`
                             },
 
-                            body: JSON.stringify({
-                                name: name,
-                                category: category,
-                                color: color
-                            })
+                            body: formData
                         }
                     );
-
                 }
 
 
