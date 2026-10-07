@@ -4,8 +4,10 @@ from logging.config import fileConfig
 from alembic import context
 from app.db.database import Base
 from app.models.clothing_item import ClothingItem
-from backend.app.models.user import User
-from config import settings
+from app.models.outfit import Outfit
+from app.models.outfit_item import OutfitItem
+from app.models.user import User
+from app.core.config import settings
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config

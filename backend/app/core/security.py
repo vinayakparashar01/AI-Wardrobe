@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from config import settings
 from pwdlib import PasswordHash
+
+from app.core.config import settings
 
 password_hash = PasswordHash.recommended()
 
@@ -19,10 +20,8 @@ def create_access_token(user_id: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
-    payload = {
-        "sub": user_id,
-        "exp": expire,
-    }
+    payload = {"sub": user_id, "exp": expire}
+
     return jwt.encode(
         payload,
         settings.secret_key,
@@ -37,7 +36,6 @@ def verify_access_token(token: str) -> str | None:
             settings.secret_key,
             algorithms=[settings.algorithm],
         )
-
         return payload.get("sub")
     except jwt.InvalidTokenError:
         return None

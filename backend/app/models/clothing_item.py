@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from app.db.database import Base
 from app.models.user import User
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+    from app.models.outfit_item import OutfitItem
 
 
 class ClothingItem(Base):
@@ -37,3 +41,7 @@ class ClothingItem(Base):
         default=datetime.utcnow,
     )
     user: Mapped["User"] = relationship(back_populates="clothing_items")
+
+    outfit_items: Mapped[list["OutfitItem"]] = relationship(
+        back_populates="clothing_item",
+    )
