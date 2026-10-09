@@ -1,13 +1,55 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# Python
+
+**pycache**/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
-.venv/
 
-# Environment variables
+venv/
+.venv/
+env/
+
+# Environment variables and secrets
+
 .env
+.env.*
+!.env.example
+
+# Node.js
+
+node_modules/
+
+# Build files
+
+dist/
+build/
+
+# Logs
+
+*.log
+
+# IDE settings
+
+.idea/
+.vscode/
+
+# Uploaded media and user files
+
+media/*
+!media/.gitkeep
+uploads/
+
+# Local databases
+
+*.db
+*.sqlite
+*.sqlite3
+
+# OS files
+
+.DS_Store
+Thumbs.db
