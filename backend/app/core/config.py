@@ -11,4 +11,4 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
 
-settings = Settings()
+settings = Settings()  # type: ignore

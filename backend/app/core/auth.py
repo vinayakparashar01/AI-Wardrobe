@@ -1,13 +1,14 @@
 from typing import Annotated
 from uuid import UUID
 
-from app.core.security import verify_access_token
-from app.db.database import get_db
-from app.models.user import User
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import verify_access_token
+from app.db.database import get_db
+from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 

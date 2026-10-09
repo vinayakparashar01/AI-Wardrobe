@@ -1,11 +1,12 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
+from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db.database import Base
 from app.models.clothing_item import ClothingItem
 from app.models.outfit import Outfit
-from sqlalchemy import DateTime, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class OutfitItem(Base):
@@ -21,7 +22,7 @@ class OutfitItem(Base):
         nullable=False,
         index=True,
     )
-    
+
     clothing_item_id: Mapped[UUID] = mapped_column(
         ForeignKey("clothing_items.id", ondelete="CASCADE"),
         nullable=False,
@@ -33,10 +34,6 @@ class OutfitItem(Base):
         default=datetime.utcnow,
     )
 
-    outfit: Mapped["Outfit"] = relationship(
-        back_populates="outfit_items"
-    )
+    outfit: Mapped["Outfit"] = relationship(back_populates="outfit_items")
 
-    clothing_item: Mapped["ClothingItem"] = relationship(
-        back_populates="outfit_items"
-    )
+    clothing_item: Mapped["ClothingItem"] = relationship(back_populates="outfit_items")

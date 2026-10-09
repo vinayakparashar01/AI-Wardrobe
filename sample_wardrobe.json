@@ -1,0 +1,87 @@
+[
+  {
+    "name": "Black T-Shirt",
+    "category": "upper",
+    "color": "Black"
+  },
+  {
+    "name": "White T-Shirt",
+    "category": "upper",
+    "color": "White"
+  },
+  {
+    "name": "Navy Blue Shirt",
+    "category": "upper",
+    "color": "Navy Blue"
+  },
+  {
+    "name": "Beige Overshirt",
+    "category": "upper",
+    "color": "Beige"
+  },
+  {
+    "name": "Grey Hoodie",
+    "category": "upper",
+    "color": "Grey"
+  },
+  {
+    "name": "Blue Jeans",
+    "category": "lower",
+    "color": "Blue"
+  },
+  {
+    "name": "Black Jeans",
+    "category": "lower",
+    "color": "Black"
+  },
+  {
+    "name": "Beige Chinos",
+    "category": "lower",
+    "color": "Beige"
+  },
+  {
+    "name": "Grey Joggers",
+    "category": "lower",
+    "color": "Grey"
+  },
+  {
+    "name": "Black Cargo Pants",
+    "category": "lower",
+    "color": "Black"
+  },
+  {
+    "name": "White Sneakers",
+    "category": "shoes",
+    "color": "White"
+  },
+  {
+    "name": "Black Sneakers",
+    "category": "shoes",
+    "color": "Black"
+  },
+  {
+    "name": "Brown Loafers",
+    "category": "shoes",
+    "color": "Brown"
+  },
+  {
+    "name": "Black Cap",
+    "category": "accessories",
+    "color": "Black"
+  },
+  {
+    "name": "Brown Belt",
+    "category": "accessories",
+    "color": "Brown"
+  },
+  {
+    "name": "Silver Watch",
+    "category": "accessories",
+    "color": "Silver"
+  },
+  {
+    "name": "Black Backpack",
+    "category": "accessories",
+    "color": "Black"
+  }
+]

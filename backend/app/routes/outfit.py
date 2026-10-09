@@ -1,11 +1,12 @@
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.auth import CurrentUser
 from app.db.database import get_db
 from app.schemas.outfit import OutfitCreate, OutfitResponse, OutfitUpdate
 from app.services import outfit_service
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/outfits", tags=["Outfits"])
 
@@ -20,9 +21,7 @@ async def create_outfit(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ):
-    return await outfit_service.create_outfit(
-        db, current_user.id, outfit_data
-    )
+    return await outfit_service.create_outfit(db, current_user.id, outfit_data)
 
 
 @router.get("/", response_model=list[OutfitResponse])
@@ -39,9 +38,7 @@ async def get_outfit(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ):
-    return await outfit_service.get_outfit(
-        db, current_user.id, outfit_id
-    )
+    return await outfit_service.get_outfit(db, current_user.id, outfit_id)
 
 
 @router.put("/{outfit_id}", response_model=OutfitResponse)
@@ -62,6 +59,4 @@ async def delete_outfit(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ):
-    await outfit_service.delete_outfit(
-        db, current_user.id, outfit_id
-    )
+    await outfit_service.delete_outfit(db, current_user.id, outfit_id)
