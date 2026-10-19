@@ -1,14 +1,17 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    class Config:
+        env_file = ".env"
+
     database_url: str
-
-    model_config = SettingsConfigDict(env_file=".env")
-
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+
+    gemini_api_key: str
+    gemini_model: str
 
 
 settings = Settings()  # type: ignore

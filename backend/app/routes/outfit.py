@@ -1,12 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, status
 
-from app.core.auth import CurrentUser
-from app.db.database import get_db
+from app.core.auth import CurrentUser, DBSession
 from app.schemas.outfit import OutfitCreate, OutfitResponse, OutfitUpdate
-from app.services import outfit_service
+from app.schemas.outfit_recommendation import (
+    OutfitRecommendationRequest,
+    OutfitRecommendationResponse,
+)
+from app.services import ai_outfit_service, outfit_service
 
 router = APIRouter(prefix="/outfits", tags=["Outfits"])
 
@@ -19,7 +21,7 @@ router = APIRouter(prefix="/outfits", tags=["Outfits"])
 async def create_outfit(
     outfit_data: OutfitCreate,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     return await outfit_service.create_outfit(db, current_user.id, outfit_data)
 
@@ -27,7 +29,7 @@ async def create_outfit(
 @router.get("/", response_model=list[OutfitResponse])
 async def get_outfits(
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     return await outfit_service.get_outfits(db, current_user.id)
 
@@ -36,7 +38,7 @@ async def get_outfits(
 async def get_outfit(
     outfit_id: UUID,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     return await outfit_service.get_outfit(db, current_user.id, outfit_id)
 
@@ -46,7 +48,7 @@ async def update_outfit(
     outfit_id: UUID,
     current_user: CurrentUser,
     outfit_data: OutfitUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     return await outfit_service.update_outfit(
         db, current_user.id, outfit_id, outfit_data
@@ -57,6 +59,28 @@ async def update_outfit(
 async def delete_outfit(
     outfit_id: UUID,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     await outfit_service.delete_outfit(db, current_user.id, outfit_id)
+
+
+@router.post(
+    "/recommendations",
+    response_model=OutfitRecommendationResponse,
+)
+async def recommend_outfits(
+    requirements: OutfitRecommendationRequest,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    try:
+        return await ai_outfit_service.generate_recommendations(
+            db,
+            current_user.id,
+            requirements,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc

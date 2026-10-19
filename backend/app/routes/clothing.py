@@ -1,17 +1,14 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, File, Form, UploadFile, status
 
-from app.core.auth import CurrentUser
-from app.db.database import get_db
+from app.core.auth import CurrentUser, DBSession
 from app.schemas.clothing_item import ClothingItemResponse
 from app.services import clothing_service
 
 router = APIRouter(prefix="/clothing-items", tags=["Clothing"])
 
-DBSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.post(

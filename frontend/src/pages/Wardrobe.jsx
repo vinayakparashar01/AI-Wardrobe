@@ -1,6 +1,237 @@
-import React from "react";
-import {useEffect,useMemo,useState} from "react";
-import {Plus,Search} from "lucide-react";
-import {useNavigate,useSearchParams} from "react-router-dom";
-import {api} from "../api";
-import {Button,ClothingCard,EmptyState,Loading,PageHeader} from "../components/UI";export default function Wardrobe(){const[items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[params]=useSearchParams(),go=useNavigate(),[q,setQ]=useState(params.get("search")||""),[cat,setCat]=useState("All");async function load(){setLoading(true);try{setItems(await api.listClothes());setError("")}catch(e){setError(e.message)}finally{setLoading(false)}}useEffect(()=>{load()},[]);const filtered=useMemo(()=>items.filter(i=>(cat==="All"||i.category?.toLowerCase()===cat.toLowerCase())&&(!q||`${i.name} ${i.category} ${i.color}`.toLowerCase().includes(q.toLowerCase()))),[items,cat,q]);return <div><PageHeader eyebrow="MY COLLECTION" title="My wardrobe" subtitle={`${items.length} pieces, ready to become outfits.`} action={<Button onClick={()=>go("/wardrobe?add=1")} icon={<Plus size={17}/>}>Add clothing</Button>}/><div className="toolbar"><div className="search-small"><Search size={17}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search clothes…"/></div><div className="category-tabs">{["All","Upper","Lower","Shoes","Accessories"].map(x=><button className={cat===x?"selected":""} key={x} onClick={()=>setCat(x)}>{x}</button>)}</div></div>{loading?<Loading/>:error?<div className="error-box">{error}<button onClick={load}>Try again</button></div>:filtered.length?<div className="clothing-grid">{filtered.map(x=><ClothingCard key={x.id} item={x}/>)}</div>:<EmptyState icon={<Search/>} title="Nothing found" text="Try another search or add a new piece." action={<Button onClick={()=>go("/wardrobe?add=1")} icon={<Plus size={16}/>}>Add clothing</Button>}/>}<Add open={params.get("add")==="1"} close={()=>go("/wardrobe")} created={x=>{setItems([x,...items]);go("/wardrobe")}}/></div>}function Add({open,close,created}){const[f,setF]=useState({name:"",category:"Upper",color:"",image_url:""}),[busy,setBusy]=useState(false),[error,setError]=useState("");if(!open)return null;async function save(e){e.preventDefault();setBusy(true);setError("");try{created(await api.createClothing(f))}catch(x){setError(x.message)}finally{setBusy(false)}}return <div className="modal-backdrop" onMouseDown={close}><div className="modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">WARDROBE</div><h2>Add clothing</h2></div><button onClick={close}>×</button></div>{error&&<div className="error-box">{error}</div>}<form className="form" onSubmit={save}><label>Name<input required value={f.name} onChange={e=>setF({...f,name:e.target.value})} placeholder="White T-Shirt"/></label><div className="form-row"><label>Category<select value={f.category} onChange={e=>setF({...f,category:e.target.value})}><option>Upper</option><option>Lower</option><option>Shoes</option><option>Accessories</option></select></label><label>Color<input required value={f.color} onChange={e=>setF({...f,color:e.target.value})} placeholder="White"/></label></div><label>Image URL <span className="muted">(optional)</span><input value={f.image_url} onChange={e=>setF({...f,image_url:e.target.value})} placeholder="https://…"/></label><p className="form-note">The current backend contract available to this frontend uses image_url.</p><div className="modal-actions"><Button variant="secondary" type="button" onClick={close}>Cancel</Button><Button type="submit" disabled={busy}>{busy?"Saving…":"Add to wardrobe"}</Button></div></form></div></div>}
+import React, { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Sparkles } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../api";
+import { CATEGORIES } from "../constants";
+import {
+  Button,
+  ClothingCard,
+  ClothingForm,
+  EmptyState,
+  ErrorAlert,
+  Loading,
+  Modal,
+  PageHeader,
+  SearchInput,
+} from "../components/UI";
+
+export default function Wardrobe() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const [savingPiece, setSavingPiece] = useState(false);
+  const [modalError, setModalError] = useState("");
+
+  const categoryParam = searchParams.get("category") || "All";
+  const searchParam = searchParams.get("search") || "";
+  const sortParam = searchParams.get("sort") || "";
+  const isAddModalOpen = searchParams.get("add") === "1";
+
+  async function loadWardrobe() {
+    setLoading(true);
+    try {
+      const clothes = await api.listClothes();
+      setItems(clothes || []);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadWardrobe();
+  }, []);
+
+  const handleCategoryChange = (cat) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (cat === "All") {
+      newParams.delete("category");
+    } else {
+      newParams.set("category", cat);
+    }
+    setSearchParams(newParams);
+  };
+
+  const handleSearchChange = (val) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (!val) {
+      newParams.delete("search");
+    } else {
+      newParams.set("search", val);
+    }
+    setSearchParams(newParams);
+  };
+
+  const closeAddModal = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("add");
+    setSearchParams(newParams);
+    setModalError("");
+  };
+
+  const openAddModal = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("add", "1");
+    setSearchParams(newParams);
+  };
+
+  async function handleCreatePiece(formData) {
+    setSavingPiece(true);
+    setModalError("");
+
+    try {
+      const createdItem = await api.createClothing({
+        name: formData.name,
+        category: formData.category,
+        color: formData.color,
+        image: formData.imageFile,
+      });
+
+      setItems((prev) => [createdItem, ...prev]);
+      closeAddModal();
+    } catch (err) {
+      setModalError(err.message);
+    } finally {
+      setSavingPiece(false);
+    }
+  }
+
+  const categoryCounts = useMemo(() => {
+    const counts = { All: items.length };
+    CATEGORIES.forEach((cat) => {
+      counts[cat.id] = items.filter(
+        (i) => i.category?.toLowerCase() === cat.id.toLowerCase()
+      ).length;
+    });
+    return counts;
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    let result = items.filter((item) => {
+      const matchesCategory =
+        categoryParam === "All" ||
+        item.category?.toLowerCase() === categoryParam.toLowerCase();
+      const matchesSearch =
+        !searchParam ||
+        `${item.name} ${item.category} ${item.color}`
+          .toLowerCase()
+          .includes(searchParam.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+
+    if (sortParam === "recent") {
+      result = [...result].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+    }
+
+    return result;
+  }, [items, categoryParam, searchParam, sortParam]);
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="MY COLLECTION"
+        title="My wardrobe"
+        subtitle={`${items.length} pieces, ready to style.`}
+        action={
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/stylist")}
+              icon={<Sparkles size={16} />}
+            >
+              AI Stylist
+            </Button>
+            <Button onClick={openAddModal} icon={<Plus size={17} />}>
+              Add piece
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="toolbar">
+        <SearchInput
+          value={searchParam}
+          onChange={handleSearchChange}
+          placeholder="Search pieces by name, color…"
+          size="small"
+        />
+
+        <div className="category-tabs">
+          <button
+            className={categoryParam === "All" ? "selected" : ""}
+            onClick={() => handleCategoryChange("All")}
+          >
+            All ({categoryCounts.All || 0})
+          </button>
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              className={
+                categoryParam.toLowerCase() === cat.id.toLowerCase()
+                  ? "selected"
+                  : ""
+              }
+              onClick={() => handleCategoryChange(cat.id)}
+            >
+              {cat.shortLabel} ({categoryCounts[cat.id] || 0})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ErrorAlert
+        message={error}
+        onRetry={loadWardrobe}
+        onDismiss={() => setError("")}
+      />
+
+      {loading ? (
+        <Loading message="Loading wardrobe pieces…" />
+      ) : filteredItems.length ? (
+        <div className="clothing-grid">
+          {filteredItems.map((item) => (
+            <ClothingCard key={item.id} item={item} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={<Search />}
+          title={searchParam ? "No pieces found" : "Your closet is waiting"}
+          text={
+            searchParam
+              ? `No items match "${searchParam}". Try a different search or clear filters.`
+              : "Start by adding your first clothing piece or exploring styling ideas."
+          }
+          action={
+            <Button onClick={openAddModal} icon={<Plus size={16} />}>
+              Add your first piece
+            </Button>
+          }
+        />
+      )}
+
+      {/* Unified Add Modal using shared Modal and ClothingForm */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={closeAddModal}
+        eyebrow="WARDROBE"
+        title="Add Clothing Piece"
+      >
+        <ClothingForm
+          onSubmit={handleCreatePiece}
+          onCancel={closeAddModal}
+          submitLabel="Add to wardrobe"
+          busy={savingPiece}
+          error={modalError}
+        />
+      </Modal>
+    </div>
+  );
+}

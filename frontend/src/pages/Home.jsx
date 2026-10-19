@@ -1,7 +1,162 @@
-import React from "react";
-import {useEffect,useState} from "react";
-import {ArrowRight,Layers3,Shirt,Sparkles,Star} from "lucide-react";
-import {useNavigate} from "react-router-dom";
-import {useAuth} from "../auth";
-import {api} from "../api";
-import {Button,ClothingCard,Loading} from "../components/UI";export default function Home(){const{user}=useAuth(),go=useNavigate(),[c,setC]=useState([]),[o,setO]=useState([]),[loading,setLoading]=useState(true);useEffect(()=>{Promise.all([api.listClothes(),api.listOutfits()]).then(([a,b])=>{setC(a);setO(b)}).finally(()=>setLoading(false))},[]);if(loading)return <Loading/>;return <div><section className="hero-banner"><div><div className="eyebrow">PERSONAL STUDIO</div><h1>Good evening, <em>{user?.name||"there"}</em></h1><p>The current temperature is perfect for light layers. Here is your curated selection for tonight.</p></div><Button onClick={()=>go("/outfits/new")} icon={<Sparkles size={17}/>}>Generate New Outfit</Button></section><div className="stats-row"><div className="stat-card"><Shirt/><div><strong>{c.length}</strong><span>Pieces in wardrobe</span></div></div><div className="stat-card"><Layers3/><div><strong>{o.length}</strong><span>Saved outfits</span></div></div><div className="stat-card"><Star/><div><strong>{o.filter(x=>x.is_favorite).length}</strong><span>Favorite looks</span></div></div></div><section className="home-section"><div className="section-heading"><div><div className="eyebrow">YOUR CLOSET</div><h2>Recently added</h2></div><button className="text-button" onClick={()=>go("/wardrobe")}>View wardrobe <ArrowRight size={16}/></button></div>{c.length?<div className="clothing-grid home-grid">{c.slice(0,4).map(x=><ClothingCard key={x.id} item={x}/>)}</div>:<div className="simple-empty">Your wardrobe is ready for its first piece. <button onClick={()=>go("/wardrobe?add=1")}>Add clothing</button></div>}</section><section className="home-section"><div className="section-heading"><div><div className="eyebrow">SAVED LOOKS</div><h2>Your outfits</h2></div><button className="text-button" onClick={()=>go("/outfits")}>View all <ArrowRight size={16}/></button></div>{o.length?<div className="outfit-grid">{o.slice(0,3).map(x=><OutfitMini key={x.id} outfit={x}/>)}</div>:<div className="simple-empty">No outfits yet. Create your first look from your wardrobe.</div>}</section></div>}function OutfitMini({outfit}){const go=useNavigate();return <article className="outfit-card" onClick={()=>go(`/outfits/${outfit.id}`)}><div className="outfit-visual"><div className="outfit-stack"><div className="outfit-piece piece-0">TOP</div><div className="outfit-piece piece-1">BOTTOM</div><div className="outfit-piece piece-2">SHOES</div></div></div><div className="card-info"><div><h3>{outfit.name}</h3><p>{outfit.description||"Saved look"}</p></div></div></article>}
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Layers3, Plus, Shirt, Sparkles, Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth";
+import { api } from "../api";
+import { Button, ClothingCard, Loading, OutfitCard } from "../components/UI";
+
+export default function Home() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [clothes, setClothes] = useState([]);
+  const [outfits, setOutfits] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([api.listClothes(), api.listOutfits()])
+      .then(([clothesData, outfitsData]) => {
+        setClothes(clothesData || []);
+        setOutfits(outfitsData || []);
+      })
+      .catch((err) => console.error("Error loading home data:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const clothesMap = useMemo(() => {
+    const map = {};
+    clothes.forEach((item) => {
+      map[item.id] = item;
+    });
+    return map;
+  }, [clothes]);
+
+  if (loading) return <Loading message="Loading your wardrobe studio…" />;
+
+  const favoriteOutfitsCount = outfits.filter((x) => x.is_favorite).length;
+
+  return (
+    <div>
+      {/* Hero Banner */}
+      <section className="hero-banner">
+        <div>
+          <div className="eyebrow">PERSONAL AI STUDIO</div>
+          <h1>
+            Good day, <em>{user?.name || "there"}</em>
+          </h1>
+          <p>
+            Your wardrobe currently has {clothes.length} curated pieces. Ask the AI Stylist
+            to design outfits or explore your closet combinations.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <Button
+            onClick={() => navigate("/stylist")}
+            icon={<Sparkles size={17} />}
+          >
+            AI Stylist
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => navigate("/wardrobe?add=1")}
+            icon={<Plus size={17} />}
+          >
+            Add Piece
+          </Button>
+        </div>
+      </section>
+
+      {/* Stats Row */}
+      <div className="stats-row">
+        <div className="stat-card" onClick={() => navigate("/wardrobe")} style={{ cursor: "pointer" }}>
+          <Shirt />
+          <div>
+            <strong>{clothes.length}</strong>
+            <span>Pieces in wardrobe</span>
+          </div>
+        </div>
+
+        <div className="stat-card" onClick={() => navigate("/outfits")} style={{ cursor: "pointer" }}>
+          <Layers3 />
+          <div>
+            <strong>{outfits.length}</strong>
+            <span>Saved outfits</span>
+          </div>
+        </div>
+
+        <div className="stat-card" onClick={() => navigate("/outfits?favorite=1")} style={{ cursor: "pointer" }}>
+          <Star />
+          <div>
+            <strong>{favoriteOutfitsCount}</strong>
+            <span>Favorite looks</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Recently Added Clothes */}
+      <section className="home-section">
+        <div className="section-heading">
+          <div>
+            <div className="eyebrow">YOUR CLOSET</div>
+            <h2>Recently added</h2>
+          </div>
+          <button
+            className="text-button"
+            onClick={() => navigate("/wardrobe")}
+          >
+            View wardrobe <ArrowRight size={16} />
+          </button>
+        </div>
+
+        {clothes.length ? (
+          <div className="clothing-grid home-grid">
+            {clothes.slice(0, 4).map((item) => (
+              <ClothingCard key={item.id} item={item} />
+            ))}
+          </div>
+        ) : (
+          <div className="simple-empty">
+            Your wardrobe is ready for its first piece.{" "}
+            <button onClick={() => navigate("/wardrobe?add=1")}>
+              Add clothing piece
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Saved Looks */}
+      <section className="home-section">
+        <div className="section-heading">
+          <div>
+            <div className="eyebrow">SAVED LOOKS</div>
+            <h2>Your outfits</h2>
+          </div>
+          <button className="text-button" onClick={() => navigate("/outfits")}>
+            View all <ArrowRight size={16} />
+          </button>
+        </div>
+
+        {outfits.length ? (
+          <div className="outfit-grid">
+            {outfits.slice(0, 3).map((outfit) => (
+              <OutfitCard
+                key={outfit.id}
+                outfit={outfit}
+                clothesMap={clothesMap}
+                variant="compact"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="simple-empty">
+            No outfits yet. Let the{" "}
+            <button onClick={() => navigate("/stylist")}>
+              AI Stylist generate looks
+            </button>{" "}
+            from your wardrobe pieces.
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

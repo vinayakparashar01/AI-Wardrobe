@@ -1,6 +1,221 @@
-import React from "react";
-import {useEffect,useMemo,useState} from "react";
-import {ArrowLeft,Check,Search,Shirt} from "lucide-react";
-import {useNavigate} from "react-router-dom";
-import {api} from "../api";
-import {Button,Loading} from "../components/UI";export default function CreateOutfit(){const go=useNavigate(),[clothes,setClothes]=useState([]),[sel,setSel]=useState([]),[q,setQ]=useState(""),[name,setName]=useState(""),[desc,setDesc]=useState(""),[fav,setFav]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");useEffect(()=>{api.listClothes().then(setClothes).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[]);const f=useMemo(()=>clothes.filter(i=>`${i.name} ${i.category} ${i.color}`.toLowerCase().includes(q.toLowerCase())),[clothes,q]);const toggle=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);async function save(){if(!name.trim()||!sel.length){setError("Give your outfit a name and select at least one clothing item.");return}setBusy(true);setError("");try{const o=await api.createOutfit({name,description:desc||null,clothing_item_ids:sel,is_favorite:fav});go(`/outfits/${o.id}`)}catch(e){setError(e.message)}finally{setBusy(false)}}if(loading)return <Loading/>;return <div><button className="back-button" onClick={()=>go("/outfits")}><ArrowLeft size={17}/>Back to outfits</button><div className="create-layout"><section className="outfit-builder"><div className="eyebrow">CREATE A LOOK</div><h1>Build your outfit.</h1><p className="builder-subtitle">Choose pieces from your wardrobe and see your combination come together.</p><div className="builder-preview">{sel.length?sel.map((id,i)=>{const x=clothes.find(c=>c.id===id);return <div className={`preview-piece preview-${i%3}`} key={id}>{x?.image_url?<img src={x.image_url} alt={x.name}/>:<><Shirt size={28}/><span>{x?.name}</span></>}</div>}):<div className="preview-empty"><Shirt size={34}/><span>Select pieces from your wardrobe</span></div>}</div><div className="form"><label>Outfit name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Casual Friday"/></label><label>Description <span className="muted">(optional)</span><textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Simple everyday look" rows="3"/></label><label className="check-row"><input type="checkbox" checked={fav} onChange={e=>setFav(e.target.checked)}/>Save as favorite</label>{error&&<div className="error-box">{error}</div>}<Button onClick={save} disabled={busy}>{busy?"Saving outfit…":"Save outfit"}</Button></div></section><aside className="closet-picker"><div className="picker-head"><div><div className="eyebrow">YOUR CLOSET</div><h2>Select pieces</h2></div><span className="selection-count">{sel.length} selected</span></div><div className="search-small"><Search size={17}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search clothes…"/></div><div className="picker-list">{f.map(x=><button className={`picker-item ${sel.includes(x.id)?"picked":""}`} key={x.id} onClick={()=>toggle(x.id)}><div className="picker-image">{x.image_url?<img src={x.image_url} alt=""/>:<Shirt size={24}/>}</div><div><strong>{x.name}</strong><span>{x.category} · {x.color}</span></div>{sel.includes(x.id)&&<Check size={19}/>}</button>)}</div></aside></div></div>}
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, Shirt, Sparkles, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api";
+import {
+  BackButton,
+  Button,
+  ClothingImage,
+  ErrorAlert,
+  Loading,
+  SearchInput,
+} from "../components/UI";
+import { formatCategorySlot } from "../constants";
+
+export default function CreateOutfit() {
+  const navigate = useNavigate();
+
+  const [clothes, setClothes] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api
+      .listClothes()
+      .then((items) => setClothes(items || []))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredClothes = useMemo(() => {
+    return clothes.filter((item) =>
+      `${item.name} ${item.category} ${item.color}`
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+    );
+  }, [clothes, searchQuery]);
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const removePiece = (id) => {
+    setSelectedIds((prev) => prev.filter((item) => item !== id));
+  };
+
+  async function handleSave() {
+    if (!name.trim()) {
+      setError("Please give your outfit a name.");
+      return;
+    }
+    if (selectedIds.length < 2) {
+      setError("Please select at least 2 clothing pieces for a complete outfit.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const outfit = await api.createOutfit({
+        name,
+        description: description || null,
+        clothing_item_ids: selectedIds,
+        is_favorite: isFavorite,
+      });
+      navigate(`/outfits/${outfit.id}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <Loading message="Loading your closet…" />;
+
+  return (
+    <div>
+      <BackButton to="/outfits" label="Back to outfits" />
+
+      <div className="create-layout">
+        {/* Left Column: Builder Preview & Info */}
+        <section className="outfit-builder">
+          <div className="eyebrow">CREATE A LOOK</div>
+          <h1>Build your outfit</h1>
+          <p className="builder-subtitle">
+            Choose pieces from your wardrobe and see your combination come together.
+          </p>
+
+          <div className="builder-preview">
+            {selectedIds.length ? (
+              selectedIds.map((id, index) => {
+                const item = clothes.find((c) => c.id === id);
+                return (
+                  <div
+                    className={`preview-piece preview-${index % 3}`}
+                    key={id}
+                  >
+                    <button
+                      type="button"
+                      className="preview-remove-chip"
+                      onClick={() => removePiece(id)}
+                      title="Remove piece"
+                    >
+                      <X size={13} />
+                    </button>
+                    <ClothingImage item={item} size="md" />
+                    <span className="preview-label">{item?.name}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="preview-empty">
+                <Shirt size={36} />
+                <span>Select pieces from your closet on the right</span>
+              </div>
+            )}
+          </div>
+
+          <div className="form">
+            <label>
+              Outfit Name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Cozy Campus Layer"
+              />
+            </label>
+
+            <label>
+              Description <span className="muted">(optional)</span>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What makes this combination great?"
+                rows="3"
+              />
+            </label>
+
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={isFavorite}
+                onChange={(e) => setIsFavorite(e.target.checked)}
+              />
+              <span>Save as favorite look</span>
+            </label>
+
+            <ErrorAlert message={error} onDismiss={() => setError("")} />
+
+            <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
+              <Button onClick={handleSave} disabled={busy}>
+                {busy ? "Saving outfit…" : "Save outfit"}
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => navigate("/stylist")}
+                icon={<Sparkles size={16} />}
+              >
+                Or use AI Stylist
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Right Column: Closet Picker */}
+        <aside className="closet-picker">
+          <div className="picker-head">
+            <div>
+              <div className="eyebrow">YOUR CLOSET</div>
+              <h2>Select pieces</h2>
+            </div>
+            <span className="selection-count">
+              {selectedIds.length} selected
+            </span>
+          </div>
+
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search closet…"
+            size="small"
+          />
+
+          <div className="picker-list">
+            {filteredClothes.map((item) => {
+              const isSelected = selectedIds.includes(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`picker-item ${isSelected ? "picked" : ""}`}
+                  onClick={() => toggleSelect(item.id)}
+                >
+                  <div className="picker-image">
+                    <ClothingImage item={item} size="sm" />
+                  </div>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <span>
+                      {formatCategorySlot(item.category)} · {item.color}
+                    </span>
+                  </div>
+                  {isSelected && <Check size={18} className="picker-check-icon" />}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
