@@ -158,13 +158,6 @@ export default function AIStylist() {
     }
   }
 
-  // Auto-generate on initial wardrobe load if not yet generated
-  useEffect(() => {
-    if (clothesLoaded && clothes.length >= 2 && suggestions.length === 0 && !loading) {
-      generateOutfits();
-    }
-  }, [clothesLoaded]);
-
   // Save outfit to database
   async function handleSaveOutfit(suggestionIndex) {
     const item = suggestions[suggestionIndex];
