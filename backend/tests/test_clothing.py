@@ -1,9 +1,12 @@
 """Tests for clothing items CRUD, authorization, validation, and image upload."""
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+
+from app.utils.files import CloudinaryUploadResult
 
 
 # ---------------------------------------------------------------------------
@@ -316,18 +319,42 @@ async def test_clothing_item_with_valid_image_upload(
         b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
 
-    response = await async_client.post(
-        "/clothing-items/",
-        headers=test_user["headers"],
-        data={"name": "Graphic Tee", "category": "Upper", "color": "Black"},
-        files={"image": ("test_tee.png", fake_png_data, "image/png")},
+    mock_secure_url = (
+        "https://res.cloudinary.com/demo/image/upload/v1234567890/clothing/test_tee.png"
+    )
+    mock_public_id = "clothing/test_tee"
+    mock_result = CloudinaryUploadResult(
+        secure_url=mock_secure_url,
+        public_id=mock_public_id,
     )
 
-    assert response.status_code == 201
-    data = response.json()
-    assert data["image_url"] is not None
-    assert data["image_url"].startswith("/media/")
-    assert data["image_url"].endswith(".png")
+    with patch(
+        "app.services.clothing_service.upload_image_to_cloudinary",
+        return_value=mock_result,
+    ) as mock_upload:
+        response = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Graphic Tee", "category": "Upper", "color": "Black"},
+            files={"image": ("test_tee.png", fake_png_data, "image/png")},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["id"] is not None
+        assert data["name"] == "Graphic Tee"
+        assert data["category"] == "Upper"
+        assert data["color"] == "Black"
+        assert data["image_url"] == mock_secure_url
+        assert mock_upload.called
+
+    # Ensure the uploaded image URL is saved to the clothing item in the database
+    fetch_res = await async_client.get(
+        f"/clothing-items/{data['id']}",
+        headers=test_user["headers"],
+    )
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == mock_secure_url
 
 
 @pytest.mark.asyncio

@@ -1,30 +1,24 @@
-from pathlib import Path
-from uuid import UUID, uuid4
+import asyncio
+from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.clothing_item import ClothingItem
-from app.utils.files import MEDIA_DIR, delete_image_file
+from app.utils.files import MEDIA_DIR, delete_image_file, upload_image_to_cloudinary
 
 
 async def _save_image(image: UploadFile) -> str:
+    """Upload image to Cloudinary and return its secure URL."""
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only image files are allowed",
         )
 
-    extension = Path(image.filename or "").suffix.lower() or ".jpg"
-    filename = f"{uuid4()}{extension}"
-    file_path = MEDIA_DIR / filename
-
-    with file_path.open("wb") as buffer:
-        while chunk := await image.read(1024 * 1024):
-            buffer.write(chunk)
-
-    return f"/media/{filename}"
+    upload_result = await asyncio.to_thread(upload_image_to_cloudinary, image)
+    return upload_result.secure_url
 
 
 async def create_clothing_item(
@@ -46,8 +40,14 @@ async def create_clothing_item(
     )
 
     db.add(item)
-    await db.commit()
-    await db.refresh(item)
+    try:
+        await db.commit()
+        await db.refresh(item)
+    except Exception:
+        await db.rollback()
+        if image_url:
+            await asyncio.to_thread(delete_image_file, image_url)
+        raise
 
     return item
 
@@ -89,7 +89,8 @@ async def delete_clothing_item(
     await db.delete(item)
     await db.commit()
 
-    delete_image_file(image_url)
+    if image_url:
+        await asyncio.to_thread(delete_image_file, image_url)
 
 
 async def update_clothing_item(
@@ -108,15 +109,23 @@ async def update_clothing_item(
     item.color = color
 
     old_image_url = None
+    new_image_url = None
 
     if image is not None:
         old_image_url = item.image_url
-        item.image_url = await _save_image(image)
+        new_image_url = await _save_image(image)
+        item.image_url = new_image_url
 
-    await db.commit()
-    await db.refresh(item)
+    try:
+        await db.commit()
+        await db.refresh(item)
+    except Exception:
+        await db.rollback()
+        if new_image_url:
+            await asyncio.to_thread(delete_image_file, new_image_url)
+        raise
 
     if old_image_url:
-        delete_image_file(old_image_url)
+        await asyncio.to_thread(delete_image_file, old_image_url)
 
     return item

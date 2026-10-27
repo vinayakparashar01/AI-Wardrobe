@@ -16,6 +16,7 @@ env/
 # Environment variables and secrets
 
 .env
+.env.test
 .env.*
 !.env.example
 
