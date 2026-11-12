@@ -20,6 +20,7 @@ export default function ClothingDetails() {
 
   const [item, setItem] = useState(null);
   const [relatedOutfits, setRelatedOutfits] = useState([]);
+  const [clothesMap, setClothesMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -27,9 +28,15 @@ export default function ClothingDetails() {
   const [modalError, setModalError] = useState("");
 
   useEffect(() => {
-    Promise.all([api.getClothing(id), api.listOutfits()])
-      .then(([itemData, outfitsData]) => {
+    Promise.all([api.getClothing(id), api.listOutfits(), api.listClothes()])
+      .then(([itemData, outfitsData, allClothes]) => {
         setItem(itemData);
+        const map = {};
+        (allClothes || []).forEach((c) => {
+          map[c.id] = c;
+        });
+        setClothesMap(map);
+
         // Find outfits containing this item
         const matching = (outfitsData || []).filter((o) =>
           o.clothing_item_ids?.includes(id)
@@ -149,7 +156,7 @@ export default function ClothingDetails() {
               <OutfitCard
                 key={outfit.id}
                 outfit={outfit}
-                clothesMap={{ [item.id]: item }}
+                clothesMap={clothesMap}
                 variant="compact"
               />
             ))}

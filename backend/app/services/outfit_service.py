@@ -15,6 +15,15 @@ async def _validate_clothing_items(
     user_id: UUID,
     clothing_item_ids: list[UUID],
 ) -> None:
+    if not clothing_item_ids:
+        return
+
+    if len(clothing_item_ids) != len(set(clothing_item_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate clothing items are not allowed in an outfit",
+        )
+
     result = await db.execute(
         select(ClothingItem).where(
             ClothingItem.id.in_(clothing_item_ids),
@@ -53,6 +62,7 @@ def _to_response(
         description=outfit.description,
         is_favorite=outfit.is_favorite,
         clothing_item_ids=clothing_item_ids,
+        is_complete=len(clothing_item_ids) >= 2,
         created_at=outfit.created_at,
         updated_at=outfit.updated_at,
     )

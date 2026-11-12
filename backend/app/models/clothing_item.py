@@ -45,4 +45,6 @@ class ClothingItem(Base):
 
     outfit_items: Mapped[list["OutfitItem"]] = relationship(
         back_populates="clothing_item",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

@@ -268,6 +268,12 @@ export function OutfitCard({
     .map((id) => (typeof id === "object" ? id : clothesMap[id]))
     .filter(Boolean);
 
+  const pieceCount = outfit.clothing_item_ids?.length ?? pieces.length;
+  const isIncomplete =
+    outfit.is_complete === false ||
+    (outfit.clothing_item_ids && outfit.clothing_item_ids.length < 2) ||
+    pieces.length < 2;
+
   const toggleFavorite = async (e) => {
     e.stopPropagation();
     if (busy) return;
@@ -309,13 +315,30 @@ export function OutfitCard({
             </div>
           ) : (
             <div className="collage-empty">
-              <span>{outfit.clothing_item_ids?.length || 0} pieces</span>
+              <span>{pieceCount} pieces</span>
             </div>
           )}
         </div>
         <div className="card-info">
           <div>
-            <h3>{outfit.name}</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: "space-between" }}>
+              <h3>{outfit.name}</h3>
+              {isIncomplete && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: "700",
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    border: "1px solid #fde68a",
+                  }}
+                >
+                  Incomplete
+                </span>
+              )}
+            </div>
             <p>{outfit.description || "Saved combination"}</p>
           </div>
         </div>
@@ -327,8 +350,17 @@ export function OutfitCard({
   return (
     <article className="outfit-card" onClick={handleCardClick}>
       <div className="outfit-visual-modern">
-        <span className="outfit-count-pill">
-          {outfit.clothing_item_ids?.length || pieces.length} pieces
+        <span
+          className="outfit-count-pill"
+          style={
+            isIncomplete
+              ? { background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a" }
+              : undefined
+          }
+        >
+          {isIncomplete
+            ? `⚠️ Incomplete (${pieceCount} piece${pieceCount === 1 ? "" : "s"})`
+            : `${pieceCount} pieces`}
         </span>
 
         {pieces.length > 0 ? (
@@ -344,7 +376,7 @@ export function OutfitCard({
           </div>
         ) : (
           <div className="collage-empty">
-            <span>{outfit.clothing_item_ids?.length || 0} pieces</span>
+            <span>{pieceCount} pieces</span>
           </div>
         )}
 

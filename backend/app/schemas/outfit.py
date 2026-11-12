@@ -5,11 +5,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class OutfitCreate(BaseModel):
-    name: str = Field(min_length=1,max_length=100)
+    name: str = Field(min_length=1, max_length=100)
     description: str | None = None
     clothing_item_ids: list[UUID] = Field(min_length=1)
     is_favorite: bool = False
-    
+
+
 class OutfitUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = None
@@ -24,8 +25,8 @@ class OutfitResponse(BaseModel):
     description: str | None
     is_favorite: bool
     clothing_item_ids: list[UUID]
+    is_complete: bool = True
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-    
