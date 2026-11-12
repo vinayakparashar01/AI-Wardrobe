@@ -374,3 +374,320 @@ async def test_clothing_item_rejects_non_image_file(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Only image files are allowed"
+
+
+# ---------------------------------------------------------------------------
+# 6. Image Removal, Replacement & Persistence on Update
+# ---------------------------------------------------------------------------
+
+FAKE_PNG_BYTES = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01"
+    b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+@pytest.mark.asyncio
+async def test_update_clothing_keep_existing_image(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Case A: Updating clothing details without image and remove_image=False preserves existing image."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/original.png"
+    mock_result = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/original")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_result):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Original Tee", "category": "Upper", "color": "White"},
+            files={"image": ("original.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    assert create_res.status_code == 201
+    item_id = create_res.json()["id"]
+    assert create_res.json()["image_url"] == mock_url
+
+    with patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        update_res = await async_client.put(
+            f"/clothing-items/{item_id}",
+            headers=test_user["headers"],
+            data={
+                "name": "Updated Tee",
+                "category": "Upper",
+                "color": "Off-White",
+                "remove_image": "false",
+            },
+        )
+        assert update_res.status_code == 200
+        updated_data = update_res.json()
+        assert updated_data["name"] == "Updated Tee"
+        assert updated_data["image_url"] == mock_url
+        assert not mock_delete.called
+
+    # Verify DB persistence
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == mock_url
+
+
+@pytest.mark.asyncio
+async def test_update_clothing_remove_image_success(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Case B: Updating clothing with remove_image=True sets image_url to None and deletes storage file."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/to_remove.png"
+    mock_result = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/to_remove")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_result):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Shirt To Clear", "category": "Upper", "color": "Blue"},
+            files={"image": ("to_remove.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+    assert create_res.json()["image_url"] == mock_url
+
+    with patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        update_res = await async_client.put(
+            f"/clothing-items/{item_id}",
+            headers=test_user["headers"],
+            data={
+                "name": "Shirt Without Photo",
+                "category": "Upper",
+                "color": "Blue",
+                "remove_image": "true",
+            },
+        )
+        assert update_res.status_code == 200
+        updated_data = update_res.json()
+        assert updated_data["image_url"] is None
+        mock_delete.assert_called_once_with(mock_url)
+
+    # Verify DB persistence: image_url is null
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_clothing_replace_image_success(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Case C: Uploading a new image updates image_url and deletes the old image."""
+    old_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/old_look.png"
+    new_url = "https://res.cloudinary.com/demo/image/upload/v2/clothing/new_look.png"
+
+    res_old = CloudinaryUploadResult(secure_url=old_url, public_id="clothing/old_look")
+    res_new = CloudinaryUploadResult(secure_url=new_url, public_id="clothing/new_look")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=res_old):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Pants", "category": "Lower", "color": "Grey"},
+            files={"image": ("old.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    with patch(
+        "app.services.clothing_service.upload_image_to_cloudinary", return_value=res_new
+    ), patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        update_res = await async_client.put(
+            f"/clothing-items/{item_id}",
+            headers=test_user["headers"],
+            data={"name": "Upgraded Pants", "category": "Lower", "color": "Charcoal"},
+            files={"image": ("new.png", FAKE_PNG_BYTES, "image/png")},
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["image_url"] == new_url
+        # Old image must be deleted
+        mock_delete.assert_called_once_with(old_url)
+
+    # Verify DB persistence
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == new_url
+
+
+@pytest.mark.asyncio
+async def test_update_clothing_prioritize_new_image_over_remove_flag(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """When both a new image and remove_image=true are sent, the new image must be prioritized."""
+    old_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/first.png"
+    replacement_url = "https://res.cloudinary.com/demo/image/upload/v2/clothing/second.png"
+
+    res_first = CloudinaryUploadResult(secure_url=old_url, public_id="clothing/first")
+    res_second = CloudinaryUploadResult(secure_url=replacement_url, public_id="clothing/second")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=res_first):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Jacket", "category": "Upper", "color": "Black"},
+            files={"image": ("first.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    with patch(
+        "app.services.clothing_service.upload_image_to_cloudinary", return_value=res_second
+    ), patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        update_res = await async_client.put(
+            f"/clothing-items/{item_id}",
+            headers=test_user["headers"],
+            data={
+                "name": "Jacket",
+                "category": "Upper",
+                "color": "Black",
+                "remove_image": "true",  # Conflicting flag
+            },
+            files={"image": ("second.png", FAKE_PNG_BYTES, "image/png")},
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["image_url"] == replacement_url
+        mock_delete.assert_called_once_with(old_url)
+
+
+@pytest.mark.asyncio
+async def test_remove_image_does_not_affect_other_items(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Removing one item's image never deletes or alters another clothing item's image."""
+    url1 = "https://res.cloudinary.com/demo/image/upload/v1/clothing/item1.png"
+    url2 = "https://res.cloudinary.com/demo/image/upload/v1/clothing/item2.png"
+
+    with patch(
+        "app.services.clothing_service.upload_image_to_cloudinary",
+        return_value=CloudinaryUploadResult(secure_url=url1, public_id="clothing/item1"),
+    ):
+        res1 = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Item 1", "category": "Upper", "color": "Red"},
+            files={"image": ("item1.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    with patch(
+        "app.services.clothing_service.upload_image_to_cloudinary",
+        return_value=CloudinaryUploadResult(secure_url=url2, public_id="clothing/item2"),
+    ):
+        res2 = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Item 2", "category": "Lower", "color": "Blue"},
+            files={"image": ("item2.png", FAKE_PNG_BYTES, "image/png")},
+        )
+
+    id1 = res1.json()["id"]
+    id2 = res2.json()["id"]
+
+    # Remove image from Item 1
+    with patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        update_res = await async_client.put(
+            f"/clothing-items/{id1}",
+            headers=test_user["headers"],
+            data={
+                "name": "Item 1",
+                "category": "Upper",
+                "color": "Red",
+                "remove_image": "true",
+            },
+        )
+        assert update_res.status_code == 200
+        assert update_res.json()["image_url"] is None
+        mock_delete.assert_called_once_with(url1)
+
+    # Item 2's image must be intact
+    fetch2 = await async_client.get(f"/clothing-items/{id2}", headers=test_user["headers"])
+    assert fetch2.status_code == 200
+    assert fetch2.json()["image_url"] == url2
+
+
+@pytest.mark.asyncio
+async def test_database_failure_does_not_delete_old_image(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """If database update fails during image removal, the old image must NOT be deleted."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/preserve_on_err.png"
+    mock_result = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/preserve_on_err")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_result):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Safe Item", "category": "Upper", "color": "Green"},
+            files={"image": ("safe.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    # Simulate database commit error
+    with patch("sqlalchemy.ext.asyncio.AsyncSession.commit", side_effect=RuntimeError("DB Commit Failed")), \
+         patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        with pytest.raises(RuntimeError, match="DB Commit Failed"):
+            await async_client.put(
+                f"/clothing-items/{item_id}",
+                headers=test_user["headers"],
+                data={
+                    "name": "Safe Item",
+                    "category": "Upper",
+                    "color": "Green",
+                    "remove_image": "true",
+                },
+            )
+        # Old image was NOT deleted because transaction failed
+        assert not mock_delete.called
+
+    # Item in DB still has its old image
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == mock_url
+
+
+@pytest.mark.asyncio
+async def test_database_failure_cleans_up_new_image_and_preserves_old(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """If database update fails during image replacement, clean up the newly uploaded image and do not delete the old image."""
+    old_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/original_kept.png"
+    new_url = "https://res.cloudinary.com/demo/image/upload/v2/clothing/failed_new.png"
+
+    res_old = CloudinaryUploadResult(secure_url=old_url, public_id="clothing/original_kept")
+    res_new = CloudinaryUploadResult(secure_url=new_url, public_id="clothing/failed_new")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=res_old):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Initial Shirt", "category": "Upper", "color": "White"},
+            files={"image": ("old.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    # Simulate database commit error
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=res_new), \
+         patch("sqlalchemy.ext.asyncio.AsyncSession.commit", side_effect=RuntimeError("DB Commit Failed")), \
+         patch("app.services.clothing_service.delete_image_file") as mock_delete:
+        with pytest.raises(RuntimeError, match="DB Commit Failed"):
+            await async_client.put(
+                f"/clothing-items/{item_id}",
+                headers=test_user["headers"],
+                data={
+                    "name": "New Shirt",
+                    "category": "Upper",
+                    "color": "White",
+                },
+                files={"image": ("new.png", FAKE_PNG_BYTES, "image/png")},
+            )
+        # Newly uploaded image was cleaned up, old image was NOT deleted
+        mock_delete.assert_called_once_with(new_url)
+
+    # Item in DB still retains the original image
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == old_url

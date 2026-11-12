@@ -60,6 +60,10 @@ function objectToFormData(payload) {
   if (payload.image instanceof File) {
     formData.append("image", payload.image);
   }
+  const shouldRemove = payload.remove_image ?? payload.removeImage;
+  if (shouldRemove && !(payload.image instanceof File)) {
+    formData.append("remove_image", "true");
+  }
   return formData;
 }
 

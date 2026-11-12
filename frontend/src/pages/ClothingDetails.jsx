@@ -60,6 +60,7 @@ export default function ClothingDetails() {
         category: formData.category,
         color: formData.color,
         image: formData.imageFile,
+        remove_image: formData.removeImage,
       });
 
       setItem(updated);

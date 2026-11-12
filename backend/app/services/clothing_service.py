@@ -101,6 +101,7 @@ async def update_clothing_item(
     category: str,
     color: str,
     image: UploadFile | None = None,
+    remove_image: bool = False,
 ) -> ClothingItem:
     item = await get_clothing_item(db, user_id, clothing_id)
 
@@ -108,13 +109,19 @@ async def update_clothing_item(
     item.category = category
     item.color = color
 
-    old_image_url = None
+    old_image_to_delete = None
     new_image_url = None
 
     if image is not None:
-        old_image_url = item.image_url
+        # Case C — Replace existing image (prioritized even if remove_image is true)
+        old_image_to_delete = item.image_url
         new_image_url = await _save_image(image)
         item.image_url = new_image_url
+    elif remove_image:
+        # Case B — Remove existing image
+        old_image_to_delete = item.image_url
+        item.image_url = None
+    # Case A — Keep existing image: image is None and remove_image is False, item.image_url preserved
 
     try:
         await db.commit()
@@ -125,7 +132,7 @@ async def update_clothing_item(
             await asyncio.to_thread(delete_image_file, new_image_url)
         raise
 
-    if old_image_url:
-        await asyncio.to_thread(delete_image_file, old_image_url)
+    if old_image_to_delete:
+        await asyncio.to_thread(delete_image_file, old_image_to_delete)
 
     return item

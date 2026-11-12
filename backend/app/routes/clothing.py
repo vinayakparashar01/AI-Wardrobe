@@ -64,6 +64,7 @@ async def update_clothing_item(
     category: Annotated[str, Form()],
     color: Annotated[str, Form()],
     image: Annotated[UploadFile | None, File()] = None,
+    remove_image: Annotated[bool, Form()] = False,
 ):
     return await clothing_service.update_clothing_item(
         db,
@@ -73,4 +74,5 @@ async def update_clothing_item(
         category,
         color,
         image,
+        remove_image,
     )

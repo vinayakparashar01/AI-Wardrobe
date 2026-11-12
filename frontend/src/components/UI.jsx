@@ -386,6 +386,7 @@ export function ClothingForm({
   const [imagePreview, setImagePreview] = useState(
     initialValues.image_url ? getImageUrl(initialValues.image_url) : null
   );
+  const [removeImage, setRemoveImage] = useState(false);
 
   const quickColors = [
     { name: "Black", hex: "#1f1d1d" },
@@ -402,6 +403,7 @@ export function ClothingForm({
     setImageFile(file);
 
     if (file) {
+      setRemoveImage(false);
       const reader = new FileReader();
       reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
@@ -415,6 +417,7 @@ export function ClothingForm({
       category,
       color,
       imageFile,
+      removeImage: removeImage && !imageFile,
     });
   };
 
@@ -493,6 +496,9 @@ export function ClothingForm({
                 onClick={() => {
                   setImageFile(null);
                   setImagePreview(null);
+                  if (initialValues.image_url) {
+                    setRemoveImage(true);
+                  }
                 }}
                 title="Remove photo"
               >
