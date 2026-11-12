@@ -27,7 +27,14 @@ export default function Register() {
       await register({ ...form, username: form.name });
       navigate("/");
     } catch (err) {
-      setError(err.message);
+      if (
+        err.message &&
+        (err.message.includes("already registered") || err.message.includes("409"))
+      ) {
+        setError("This email is already registered. Please log in or use another email.");
+      } else {
+        setError(err.message || "Failed to create account. Please try again.");
+      }
     } finally {
       setBusy(false);
     }

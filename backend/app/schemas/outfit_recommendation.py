@@ -14,13 +14,13 @@ class OutfitRecommendationRequest(BaseModel):
 
 
 class OutfitSuggestion(BaseModel):
-    name: str
-    clothing_item_ids: list[UUID]
-    explanation: str
+    name: str = Field(min_length=1, max_length=100)
+    clothing_item_ids: list[UUID] = Field(min_length=2)
+    explanation: str = Field(min_length=1)
 
 
 class OutfitRecommendationResponse(BaseModel):
     suggestions: list[OutfitSuggestion] = Field(
-        min_length=3,
+        min_length=1,
         max_length=3,
     )

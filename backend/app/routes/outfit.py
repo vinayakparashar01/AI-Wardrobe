@@ -73,14 +73,8 @@ async def recommend_outfits(
     current_user: CurrentUser,
     db: DBSession,
 ):
-    try:
-        return await ai_outfit_service.generate_recommendations(
-            db,
-            current_user.id,
-            requirements,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return await ai_outfit_service.generate_recommendations(
+        db,
+        current_user.id,
+        requirements,
+    )

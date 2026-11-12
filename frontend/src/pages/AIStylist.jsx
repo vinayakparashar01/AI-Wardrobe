@@ -69,6 +69,7 @@ export default function AIStylist() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toastMessage, setToastMessage] = useState("");
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // Change Item Modal State
   const [editingOutfitIndex, setEditingOutfitIndex] = useState(null);
@@ -99,8 +100,12 @@ export default function AIStylist() {
 
   // Fetch recommendations
   async function generateOutfits(overridePrefs = null) {
-    if (clothes.length < 2) {
-      setError("Please add at least 2 clothing pieces to your wardrobe first.");
+    if (clothes.length === 0) {
+      setError("Your wardrobe is empty. Please add clothing items to your wardrobe first.");
+      return;
+    }
+    if (clothes.length === 1) {
+      setError("You only have 1 clothing item. Please add at least one more piece to create complete outfits.");
       return;
     }
 
@@ -131,30 +136,49 @@ export default function AIStylist() {
         const formatted = response.suggestions.map((s, idx) => ({
           ...s,
           tag: idx === 0 ? "Best Match" : "Trendy",
+          isFallback: false,
           saved: false,
           saving: false,
         }));
         setSuggestions(formatted);
+        setIsFallbackMode(false);
       } else {
         throw new Error("No suggestions returned from AI stylist.");
       }
     } catch (err) {
-      console.warn("AI generation note:", err.message);
-      // Generate curated suggestions from user wardrobe if AI encounters temporary rate limit
-      const fallback = buildCuratedFallback(
-        clothes,
-        targetOccasion,
-        targetSeason,
-        targetStyle,
-        targetRequirements
-      );
-      if (fallback.length > 0) {
-        setSuggestions(fallback);
-      } else {
-        setError(err.message || "Could not generate outfit suggestions.");
-      }
+      console.error("AI generation failed:", err);
+      setError(err.message || "Could not generate outfit suggestions.");
+      setSuggestions([]);
+      setIsFallbackMode(false);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleLoadOfflineFallback() {
+    const targetOccasion =
+      occasion === "Custom" ? customOccasion.trim() || "Everyday" : occasion;
+    const fallback = buildCuratedFallback(
+      clothes,
+      targetOccasion,
+      season,
+      style,
+      additionalRequirements
+    );
+    if (fallback.length > 0) {
+      const formatted = fallback.map((s) => ({
+        ...s,
+        tag: "Offline Fallback (Non-AI)",
+        isFallback: true,
+        saved: false,
+        saving: false,
+      }));
+      setSuggestions(formatted);
+      setIsFallbackMode(true);
+      setError("");
+      showToast("Loaded offline rule-based suggestions.");
+    } else {
+      setError("Not enough clothing pieces to create offline fallback combinations.");
     }
   }
 
@@ -353,6 +377,19 @@ export default function AIStylist() {
         onDismiss={() => setError("")}
       />
 
+      {error && !loading && clothes.length >= 2 && !isFallbackMode && (
+        <div style={{ marginTop: "-12px", marginBottom: "20px", display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={handleLoadOfflineFallback}
+            className="button button-outline"
+            style={{ fontSize: "13px", padding: "6px 14px" }}
+          >
+            View offline rule-based suggestions instead
+          </button>
+        </div>
+      )}
+
       {/* Preferences Card */}
       <section className="preferences-card">
         <h2 className="preferences-title">Tell us your preferences</h2>
@@ -473,10 +510,21 @@ export default function AIStylist() {
       {/* Wardrobe count warning if empty */}
       {clothesLoaded && clothes.length < 2 && (
         <div className="simple-empty" style={{ textAlign: "center", padding: "34px" }}>
-          <h3>Your wardrobe needs at least 2 clothing pieces to style outfits.</h3>
-          <p style={{ margin: "10px 0 16px" }}>
-            Add items like shirts, pants, shoes, and accessories to unlock full AI styling.
-          </p>
+          {clothes.length === 0 ? (
+            <>
+              <h3>Your wardrobe is empty. Add clothing items to start generating outfits.</h3>
+              <p style={{ margin: "10px 0 16px" }}>
+                Add items like shirts, pants, shoes, and accessories to unlock AI styling.
+              </p>
+            </>
+          ) : (
+            <>
+              <h3>You need at least 2 clothing items to generate an outfit. Add at least 1 more piece.</h3>
+              <p style={{ margin: "10px 0 16px" }}>
+                You currently have 1 item in your wardrobe. Add one more piece to start styling complete looks.
+              </p>
+            </>
+          )}
           <button
             className="button button-primary"
             onClick={() => navigate("/wardrobe?add=1")}
@@ -488,14 +536,57 @@ export default function AIStylist() {
 
       {/* Suggestions Section */}
       <section className="suggestions-section">
+        {/* Offline Fallback Banner */}
+        {isFallbackMode && suggestions.length > 0 && (
+          <div
+            style={{
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: "12px",
+              padding: "14px 18px",
+              marginBottom: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px" }}>⚠️</span>
+              <div>
+                <strong style={{ color: "#92400e", fontSize: "14px" }}>
+                  Showing Offline Rule-Based Suggestions
+                </strong>
+                <p style={{ margin: "2px 0 0", color: "#b45309", fontSize: "13px" }}>
+                  AI styling is temporarily unavailable. These outfits were assembled using smart wardrobe matching rules.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="button button-outline"
+              style={{ fontSize: "13px", padding: "6px 14px", borderColor: "#d97706", color: "#92400e" }}
+              onClick={() => generateOutfits()}
+              disabled={loading}
+            >
+              <RotateCw size={14} className={loading ? "spin" : ""} style={{ marginRight: "6px" }} />
+              Retry Gemini AI
+            </button>
+          </div>
+        )}
+
         <div className="suggestions-header">
           <div className="suggestions-header-left">
             <Sparkles size={24} className="sparkle-icon-coral" />
             <div>
-              <h2 className="suggestions-header-title">AI Outfit Suggestions</h2>
+              <h2 className="suggestions-header-title">
+                {isFallbackMode ? "Offline Rule-Based Suggestions" : "AI Outfit Suggestions"}
+              </h2>
               <p className="suggestions-header-subtitle">
-                Here are 3 outfits based on your preferences. You can edit any item or save
-                your favorite!
+                {suggestions.length === 1
+                  ? "Here is 1 outfit based on your preferences. You can edit any item or save it!"
+                  : `Here are ${suggestions.length} outfits based on your preferences. You can edit any item or save your favorite!`}
               </p>
             </div>
           </div>
@@ -600,8 +691,17 @@ export default function AIStylist() {
                       </div>
                       <span
                         className={`suggestion-tag ${
-                          index === 0 ? "best-match" : "trendy"
+                          outfit.isFallback
+                            ? "fallback"
+                            : index === 0
+                            ? "best-match"
+                            : "trendy"
                         }`}
+                        style={
+                          outfit.isFallback
+                            ? { background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }
+                            : undefined
+                        }
                       >
                         {outfit.tag || (index === 0 ? "Best Match" : "Trendy")}
                       </span>
@@ -735,82 +835,107 @@ function capitalizeSlot(category) {
 
 // Helper to construct curated fallback combinations from wardrobe
 function buildCuratedFallback(clothes, occasion, season, style, requirements) {
-  if (clothes.length < 2) return [];
+  if (!clothes || clothes.length < 2) return [];
+
+  const maxSuggestions = clothes.length === 2 ? 1 : clothes.length === 3 ? 2 : 3;
 
   const uppers = clothes.filter((c) => c.category?.toLowerCase() === "upper");
   const lowers = clothes.filter((c) => c.category?.toLowerCase() === "lower");
   const shoes = clothes.filter((c) => c.category?.toLowerCase() === "shoes");
   const accessories = clothes.filter((c) => c.category?.toLowerCase() === "accessories");
 
-  const outfits = [
+  const candidates = [
     {
       name: "Cozy Campus Casual",
-      tag: "Best Match",
       slots: [
-        uppers.find((c) => c.name.toLowerCase().includes("hoodie")) || uppers[0],
-        lowers.find((c) => c.name.toLowerCase().includes("cargo") || c.name.toLowerCase().includes("pant")) || lowers[0],
+        uppers.find((c) => c.name?.toLowerCase().includes("hoodie")) || uppers[0],
+        lowers.find((c) => c.name?.toLowerCase().includes("cargo") || c.name?.toLowerCase().includes("pant")) || lowers[0],
         shoes.find((c) => c.color?.toLowerCase().includes("white")) || shoes[0],
-        accessories.find((c) => c.name.toLowerCase().includes("backpack")) || accessories[0],
+        accessories.find((c) => c.name?.toLowerCase().includes("backpack")) || accessories[0],
       ],
       explanation:
-        "A comfortable and relaxed look perfect for college. The hoodie keeps you warm in winter, cargo pants are comfy for all-day wear, and sneakers give a casual, effortless vibe.",
+        "A comfortable and relaxed look assembled from your wardrobe pieces. Great for everyday wear with balanced versatility.",
     },
     {
       name: "Smart Casual Vibes",
-      tag: "Trendy",
       slots: [
-        uppers.find((c) => c.name.toLowerCase().includes("overshirt") || c.name.toLowerCase().includes("sweater") || c.name.toLowerCase().includes("shirt")) || uppers[1] || uppers[0],
-        lowers.find((c) => c.name.toLowerCase().includes("jeans") && c.color?.toLowerCase().includes("blue")) || lowers[0],
-        shoes.find((c) => c.color?.toLowerCase().includes("white") || c.name.toLowerCase().includes("sneaker")) || shoes[0],
-        accessories.find((c) => c.name.toLowerCase().includes("watch")) || accessories[1] || accessories[0],
+        uppers.find((c) => c.name?.toLowerCase().includes("overshirt") || c.name?.toLowerCase().includes("sweater") || c.name?.toLowerCase().includes("shirt")) || uppers[1] || uppers[0],
+        lowers.find((c) => c.name?.toLowerCase().includes("jeans") && c.color?.toLowerCase().includes("blue")) || lowers[1] || lowers[0],
+        shoes.find((c) => c.color?.toLowerCase().includes("white") || c.name?.toLowerCase().includes("sneaker")) || shoes[1] || shoes[0],
+        accessories.find((c) => c.name?.toLowerCase().includes("watch")) || accessories[1] || accessories[0],
       ],
       explanation:
-        "A simple yet stylish combination that looks great for college. The sweater keeps you warm, jeans are versatile and comfortable, and sneakers complete the casual smart look.",
+        "A simple yet stylish rule-based combination. Versatile layers and contrasting tones for a smart look.",
     },
     {
       name: "Layered Street Style",
-      tag: "Trendy",
       slots: [
-        uppers.find((c) => c.name.toLowerCase().includes("shirt") || c.name.toLowerCase().includes("overshirt")) || uppers[0],
-        uppers.find((c) => c.name.toLowerCase().includes("t-shirt") && c.color?.toLowerCase().includes("white")) || uppers[1] || uppers[0],
-        lowers.find((c) => c.name.toLowerCase().includes("cargo") || c.name.toLowerCase().includes("jogger") || c.color?.toLowerCase().includes("black")) || lowers[1] || lowers[0],
-        shoes.find((c) => c.color?.toLowerCase().includes("black") || c.name.toLowerCase().includes("sneaker")) || shoes[1] || shoes[0],
+        uppers.find((c) => c.name?.toLowerCase().includes("shirt") || c.name?.toLowerCase().includes("overshirt")) || uppers[0],
+        uppers.find((c) => c.name?.toLowerCase().includes("t-shirt") && c.color?.toLowerCase().includes("white")) || uppers[1] || uppers[0],
+        lowers.find((c) => c.name?.toLowerCase().includes("cargo") || c.name?.toLowerCase().includes("jogger") || c.color?.toLowerCase().includes("black")) || lowers[1] || lowers[0],
+        shoes.find((c) => c.color?.toLowerCase().includes("black") || c.name?.toLowerCase().includes("sneaker")) || shoes[1] || shoes[0],
       ],
       explanation:
-        "Layering adds warmth and style, while the neutral colors keep it versatile. This combo is comfortable, practical, and perfect for everyday wear in winter.",
+        "A street-inspired casual combination offering comfort and effortless style.",
     },
   ];
 
-  return outfits.map((o) => {
-    // Collect valid unique ids
+  const results = [];
+  const seenCombos = new Set();
+
+  for (const candidate of candidates) {
+    if (results.length >= maxSuggestions) break;
+
     const validIds = [];
-    const seen = new Set();
-    o.slots.forEach((s) => {
-      if (s && !seen.has(s.id)) {
-        seen.add(s.id);
+    const seenItemIds = new Set();
+    candidate.slots.forEach((s) => {
+      if (s && !seenItemIds.has(s.id)) {
+        seenItemIds.add(s.id);
         validIds.push(s.id);
       }
     });
 
     // Ensure at least 2 items
     if (validIds.length < 2) {
-      clothes.slice(0, 3).forEach((c) => {
-        if (!seen.has(c.id)) {
-          seen.add(c.id);
+      clothes.forEach((c) => {
+        if (!seenItemIds.has(c.id) && validIds.length < Math.min(clothes.length, 4)) {
+          seenItemIds.add(c.id);
           validIds.push(c.id);
         }
       });
     }
 
-    return {
-      name: o.name,
-      tag: o.tag,
-      clothing_item_ids: validIds,
-      explanation: o.explanation,
+    if (validIds.length >= 2) {
+      const comboKey = [...validIds].sort((a, b) => a - b).join(",");
+      if (!seenCombos.has(comboKey)) {
+        seenCombos.add(comboKey);
+        results.push({
+          name: candidate.name,
+          tag: "Offline Fallback (Non-AI)",
+          clothing_item_ids: validIds,
+          explanation: candidate.explanation,
+          isFallback: true,
+          saved: false,
+          saving: false,
+        });
+      }
+    }
+  }
+
+  // If no outfit was built, fallback to first available distinct items
+  if (results.length === 0 && clothes.length >= 2) {
+    results.push({
+      name: "Essential Wardrobe Match",
+      tag: "Offline Fallback (Non-AI)",
+      clothing_item_ids: clothes.slice(0, Math.min(clothes.length, 4)).map((c) => c.id),
+      explanation: "A simple match combining available items from your wardrobe.",
+      isFallback: true,
       saved: false,
       saving: false,
-    };
-  });
+    });
+  }
+
+  return results;
 }
 
 // Modal component for changing any piece in an outfit
