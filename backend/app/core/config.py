@@ -13,5 +13,13 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str
 
+    allowed_origins: str = "*"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        if not self.allowed_origins or self.allowed_origins.strip() == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
 
 settings = Settings()  # type: ignore

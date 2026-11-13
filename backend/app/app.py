@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import settings
 from app.routes.auth import router as auth_router
 from app.routes.clothing import router as clothing_router
 from app.routes.outfit import router as outfit_router
@@ -21,10 +22,15 @@ app.mount(
     name="media",
 )
 
+cors_origins = settings.cors_origins
+# Per CORS standard: wildcard origin cannot be combined with allow_credentials=True.
+# Authentication in AI Wardrobe uses the Authorization Bearer header, not browser cookies.
+allow_credentials = cors_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

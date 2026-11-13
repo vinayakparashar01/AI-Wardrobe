@@ -386,6 +386,23 @@ FAKE_PNG_BYTES = (
     b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
 )
 
+FAKE_JPEG_BYTES = (
+    b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00"
+    b"\xff\xdb\x00C\x00\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11"
+    b"\x00\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9"
+)
+
+FAKE_WEBP_BYTES = (
+    b"RIFF\x1a\x00\x00\x00WEBPVP8 \x0e\x00\x00\x000\x01\x00\x9d\x01\x2a\x01\x00\x01\x00\x02\x004\x25"
+)
+
+FAKE_GIF_BYTES = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+)
+
+OVERSIZED_PNG_BYTES = FAKE_PNG_BYTES + (b"\x00" * (5 * 1024 * 1024 + 1024))
+
+
 
 @pytest.mark.asyncio
 async def test_update_clothing_keep_existing_image(
@@ -691,3 +708,203 @@ async def test_database_failure_cleans_up_new_image_and_preserves_old(
     fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
     assert fetch_res.status_code == 200
     assert fetch_res.json()["image_url"] == old_url
+
+
+# ---------------------------------------------------------------------------
+# 7. Image Upload Validation: 5 MB Size Limit, Format & Magic Bytes (Bundle 3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_clothing_item_rejects_oversized_image(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading an image larger than 5 MB must return 413 Payload Too Large."""
+    response = await async_client.post(
+        "/clothing-items/",
+        headers=test_user["headers"],
+        data={"name": "Big Photo Shirt", "category": "Upper", "color": "Blue"},
+        files={"image": ("giant.png", OVERSIZED_PNG_BYTES, "image/png")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "File size exceeds the 5 MB limit."
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_rejects_unsupported_image_format_gif(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading a GIF image must return 415 Unsupported Media Type."""
+    response = await async_client.post(
+        "/clothing-items/",
+        headers=test_user["headers"],
+        data={"name": "Animated Shirt", "category": "Upper", "color": "Red"},
+        files={"image": ("animation.gif", FAKE_GIF_BYTES, "image/gif")},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["detail"] == "Unsupported image format. Allowed formats are JPEG, PNG, and WebP."
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_rejects_unsupported_image_format_bmp(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading a BMP image must return 415 Unsupported Media Type."""
+    response = await async_client.post(
+        "/clothing-items/",
+        headers=test_user["headers"],
+        data={"name": "Bitmap Shirt", "category": "Upper", "color": "Yellow"},
+        files={"image": ("drawing.bmp", b"BM" + (b"\x00" * 50), "image/bmp")},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["detail"] == "Unsupported image format. Allowed formats are JPEG, PNG, and WebP."
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_rejects_empty_image_file(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading an empty image file must return 400 Bad Request."""
+    response = await async_client.post(
+        "/clothing-items/",
+        headers=test_user["headers"],
+        data={"name": "Empty File Item", "category": "Upper", "color": "White"},
+        files={"image": ("empty.png", b"", "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Uploaded image file is empty."
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_rejects_corrupted_image_magic_bytes(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading a file with spoofed mime type but invalid binary magic bytes must return 400."""
+    fake_header_data = b"NOT_A_VALID_IMAGE_HEADER_1234567890"
+
+    response = await async_client.post(
+        "/clothing-items/",
+        headers=test_user["headers"],
+        data={"name": "Spoofed Image", "category": "Upper", "color": "Black"},
+        files={"image": ("fake.png", fake_header_data, "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid image content. File signature does not match JPEG, PNG, or WebP."
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_accepts_valid_jpeg(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading a valid JPEG within the 5 MB limit succeeds."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/photo.jpg"
+    mock_res = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/photo")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_res):
+        response = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Linen Shirt", "category": "Upper", "color": "Beige"},
+            files={"image": ("photo.jpg", FAKE_JPEG_BYTES, "image/jpeg")},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["image_url"] == mock_url
+
+
+@pytest.mark.asyncio
+async def test_clothing_item_accepts_valid_webp(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Uploading a valid WebP within the 5 MB limit succeeds."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/modern.webp"
+    mock_res = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/modern")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_res):
+        response = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Modern Tee", "category": "Upper", "color": "Grey"},
+            files={"image": ("photo.webp", FAKE_WEBP_BYTES, "image/webp")},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["image_url"] == mock_url
+
+
+@pytest.mark.asyncio
+async def test_update_clothing_rejects_oversized_image(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Updating a clothing item with an oversized image returns 413 and preserves existing image."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/kept.png"
+    mock_res = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/kept")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_res):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Existing Polo", "category": "Upper", "color": "Navy"},
+            files={"image": ("kept.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    # Try updating with oversized image
+    update_res = await async_client.put(
+        f"/clothing-items/{item_id}",
+        headers=test_user["headers"],
+        data={"name": "Existing Polo", "category": "Upper", "color": "Navy"},
+        files={"image": ("oversized.png", OVERSIZED_PNG_BYTES, "image/png")},
+    )
+    assert update_res.status_code == 413
+    assert update_res.json()["detail"] == "File size exceeds the 5 MB limit."
+
+    # Existing image in database must be preserved
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == mock_url
+
+@pytest.mark.asyncio
+async def test_update_clothing_rejects_unsupported_format(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """Updating a clothing item with an unsupported format returns 415 and preserves existing image."""
+    mock_url = "https://res.cloudinary.com/demo/image/upload/v1/clothing/kept2.png"
+    mock_res = CloudinaryUploadResult(secure_url=mock_url, public_id="clothing/kept2")
+
+    with patch("app.services.clothing_service.upload_image_to_cloudinary", return_value=mock_res):
+        create_res = await async_client.post(
+            "/clothing-items/",
+            headers=test_user["headers"],
+            data={"name": "Existing Jeans", "category": "Lower", "color": "Blue"},
+            files={"image": ("kept2.png", FAKE_PNG_BYTES, "image/png")},
+        )
+    item_id = create_res.json()["id"]
+
+    # Try updating with gif
+    update_res = await async_client.put(
+        f"/clothing-items/{item_id}",
+        headers=test_user["headers"],
+        data={"name": "Existing Jeans", "category": "Lower", "color": "Blue"},
+        files={"image": ("bad.gif", FAKE_GIF_BYTES, "image/gif")},
+    )
+    assert update_res.status_code == 415
+    assert update_res.json()["detail"] == "Unsupported image format. Allowed formats are JPEG, PNG, and WebP."
+
+    # Existing image in database must be preserved
+    fetch_res = await async_client.get(f"/clothing-items/{item_id}", headers=test_user["headers"])
+    assert fetch_res.status_code == 200
+    assert fetch_res.json()["image_url"] == mock_url

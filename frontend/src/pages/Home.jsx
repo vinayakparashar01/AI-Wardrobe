@@ -1,27 +1,50 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Layers3, Plus, Shirt, Sparkles, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { api } from "../api";
-import { Button, ClothingCard, Loading, OutfitCard } from "../components/UI";
+import { Button, ClothingCard, ErrorAlert, Loading, OutfitCard } from "../components/UI";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [clothes, setClothes] = useState([]);
   const [outfits, setOutfits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadHomeData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [clothesData, outfitsData] = await Promise.all([
+        api.listClothes(),
+        api.listOutfits(),
+      ]);
+      setClothes(clothesData || []);
+      setOutfits(outfitsData || []);
+    } catch (err) {
+      console.error("Error loading home data:", err);
+      const errMsg = err.message || "Failed to load wardrobe studio data.";
+      if (
+        errMsg.includes("401") ||
+        errMsg.toLowerCase().includes("unauthorized") ||
+        errMsg.toLowerCase().includes("token")
+      ) {
+        logout();
+        navigate("/login");
+        return;
+      }
+      setError(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  }, [logout, navigate]);
 
   useEffect(() => {
-    Promise.all([api.listClothes(), api.listOutfits()])
-      .then(([clothesData, outfitsData]) => {
-        setClothes(clothesData || []);
-        setOutfits(outfitsData || []);
-      })
-      .catch((err) => console.error("Error loading home data:", err))
-      .finally(() => setLoading(false));
-  }, []);
+    loadHomeData();
+  }, [loadHomeData]);
 
   const clothesMap = useMemo(() => {
     const map = {};
@@ -32,6 +55,30 @@ export default function Home() {
   }, [clothes]);
 
   if (loading) return <Loading message="Loading your wardrobe studio…" />;
+
+  if (error) {
+    return (
+      <div>
+        <section className="hero-banner">
+          <div>
+            <div className="eyebrow">PERSONAL AI STUDIO</div>
+            <h1>
+              Good day, <em>{user?.name || "there"}</em>
+            </h1>
+            <p>We encountered a problem connecting to your wardrobe studio.</p>
+          </div>
+        </section>
+
+        <div style={{ marginTop: "24px" }}>
+          <ErrorAlert
+            message={error}
+            onRetry={loadHomeData}
+            onDismiss={() => setError("")}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const favoriteOutfitsCount = outfits.filter((x) => x.is_favorite).length;
 
@@ -45,7 +92,7 @@ export default function Home() {
             Good day, <em>{user?.name || "there"}</em>
           </h1>
           <p>
-            Your wardrobe currently has {clothes.length} curated pieces. Ask the AI Stylist
+            Your wardrobe currently has {clothes.length} curated piece{clothes.length === 1 ? "" : "s"}. Ask the AI Stylist
             to design outfits or explore your closet combinations.
           </p>
         </div>

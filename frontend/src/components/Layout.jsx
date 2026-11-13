@@ -13,6 +13,7 @@ import {
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { SearchInput } from "./UI";
+import { useToast } from "./Toast";
 
 const primaryNavItems = [
   { to: "/", label: "Home", icon: HomeIcon, end: true },
@@ -106,6 +107,7 @@ function AppSidebar({ mobileOpen, onCloseMobile }) {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -151,7 +153,7 @@ export default function Layout() {
           <button
             className="icon-button"
             aria-label="Notifications"
-            onClick={() => alert("All notifications caught up!")}
+            onClick={() => showToast("All notifications caught up!", "info")}
             title="Notifications"
           >
             <Bell size={19} />

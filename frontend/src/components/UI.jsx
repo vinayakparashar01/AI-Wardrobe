@@ -419,6 +419,7 @@ export function ClothingForm({
     initialValues.image_url ? getImageUrl(initialValues.image_url) : null
   );
   const [removeImage, setRemoveImage] = useState(false);
+  const [fileError, setFileError] = useState("");
 
   const quickColors = [
     { name: "Black", hex: "#1f1d1d" },
@@ -432,18 +433,38 @@ export function ClothingForm({
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
-    setImageFile(file);
+    setFileError("");
 
-    if (file) {
-      setRemoveImage(false);
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreview(reader.result);
-      reader.readAsDataURL(file);
+    if (!file) {
+      setImageFile(null);
+      return;
     }
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+    const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+
+    if (!ALLOWED_TYPES.includes(file.type.toLowerCase())) {
+      setFileError("Only JPEG, PNG, and WebP images are supported.");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_SIZE) {
+      setFileError("File size exceeds the 5 MB limit. Please select a smaller photo.");
+      e.target.value = "";
+      return;
+    }
+
+    setImageFile(file);
+    setRemoveImage(false);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (fileError) return;
     onSubmit({
       name,
       category,
@@ -455,7 +476,9 @@ export function ClothingForm({
 
   return (
     <form className="form clothing-form" onSubmit={handleSubmit}>
-      {error && <ErrorAlert message={error} />}
+      {(fileError || error) && (
+        <ErrorAlert message={fileError || error} onDismiss={() => setFileError("")} />
+      )}
 
       <label>
         Name
@@ -544,7 +567,7 @@ export function ClothingForm({
               <span className="upload-hint">PNG, JPG, WEBP up to 5MB</span>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={handleFileChange}
                 style={{ display: "none" }}
               />
