@@ -14,8 +14,10 @@ import {
   PageHeader,
   SearchInput,
 } from "../components/UI";
+import { useToast } from "../components/Toast";
 
 export default function Wardrobe() {
+  const { showToast } = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -94,8 +96,16 @@ export default function Wardrobe() {
 
       setItems((prev) => [createdItem, ...prev]);
       closeAddModal();
+      showToast(
+        createdItem?.name
+          ? `Added "${createdItem.name}" to your wardrobe!`
+          : "Clothing piece added successfully!",
+        "success"
+      );
     } catch (err) {
-      setModalError(err.message);
+      const errMsg = err.message || "Failed to add clothing item.";
+      setModalError(errMsg);
+      showToast(errMsg, "error");
     } finally {
       setSavingPiece(false);
     }

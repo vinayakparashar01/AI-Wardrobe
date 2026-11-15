@@ -13,10 +13,12 @@ import {
   OutfitCard,
 } from "../components/UI";
 import { formatCategorySlot } from "../constants";
+import { useToast } from "../components/Toast";
 
 export default function ClothingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [item, setItem] = useState(null);
   const [relatedOutfits, setRelatedOutfits] = useState([]);
@@ -51,9 +53,17 @@ export default function ClothingDetails() {
     if (!window.confirm(`Delete "${item.name}" from your wardrobe?`)) return;
     try {
       await api.deleteClothing(id);
+      showToast(
+        item?.name
+          ? `Deleted "${item.name}" from your wardrobe.`
+          : "Clothing piece deleted.",
+        "success"
+      );
       navigate("/wardrobe");
     } catch (err) {
-      setError(err.message);
+      const errMsg = err.message || "Failed to delete clothing piece.";
+      setError(errMsg);
+      showToast(errMsg, "error");
     }
   }
 
@@ -72,8 +82,16 @@ export default function ClothingDetails() {
 
       setItem(updated);
       setEditModalOpen(false);
+      showToast(
+        updated?.name
+          ? `Updated "${updated.name}" successfully!`
+          : "Clothing piece updated successfully!",
+        "success"
+      );
     } catch (err) {
-      setModalError(err.message);
+      const errMsg = err.message || "Failed to update clothing piece.";
+      setModalError(errMsg);
+      showToast(errMsg, "error");
     } finally {
       setSavingEdit(false);
     }
