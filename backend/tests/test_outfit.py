@@ -429,3 +429,97 @@ async def test_cross_user_outfit_isolation(
     assert list_res.status_code == 200
     user2_outfit_ids = [o["id"] for o in list_res.json()]
     assert outfit_id not in user2_outfit_ids
+
+
+# ---------------------------------------------------------------------------
+# Bundle 4, Task 1: Eager Loading & N+1 Prevention Verification
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_outfits_empty_returns_empty_list(
+    async_client: AsyncClient,
+    test_user: dict,
+):
+    """When the user has no outfits, GET /outfits/ returns 200 with an empty list."""
+    res = await async_client.get("/outfits/", headers=test_user["headers"])
+    assert res.status_code == 200
+    assert res.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_outfits_multiple_correct_data_and_ids(
+    async_client: AsyncClient,
+    test_user: dict,
+    db_session: AsyncSession,
+):
+    """Multiple outfits returned by get_outfits retain exact fields, ordering, and item IDs."""
+    i1 = await _create_clothing_item(db_session, test_user["user"].id, "Top 1", "Upper", "Black")
+    i2 = await _create_clothing_item(db_session, test_user["user"].id, "Bottom 1", "Lower", "Blue")
+    i3 = await _create_clothing_item(db_session, test_user["user"].id, "Shoes 1", "Shoes", "White")
+
+    # Outfit 1 (2 items)
+    res1 = await async_client.post(
+        "/outfits/",
+        headers=test_user["headers"],
+        json={"name": "Look 1", "description": "First look", "clothing_item_ids": [str(i1.id), str(i2.id)]},
+    )
+    assert res1.status_code == 201
+    id1 = res1.json()["id"]
+
+    # Outfit 2 (3 items)
+    res2 = await async_client.post(
+        "/outfits/",
+        headers=test_user["headers"],
+        json={"name": "Look 2", "description": "Second look", "clothing_item_ids": [str(i1.id), str(i2.id), str(i3.id)]},
+    )
+    assert res2.status_code == 201
+    id2 = res2.json()["id"]
+
+    # Fetch list
+    list_res = await async_client.get("/outfits/", headers=test_user["headers"])
+    assert list_res.status_code == 200
+    data = list_res.json()
+    assert len(data) == 2
+
+    # Most recent first
+    assert data[0]["id"] == id2
+    assert data[0]["name"] == "Look 2"
+    assert set(data[0]["clothing_item_ids"]) == {str(i1.id), str(i2.id), str(i3.id)}
+    assert data[0]["is_complete"] is True
+
+    assert data[1]["id"] == id1
+    assert data[1]["name"] == "Look 1"
+    assert set(data[1]["clothing_item_ids"]) == {str(i1.id), str(i2.id)}
+    assert data[1]["is_complete"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_outfits_eager_loading_avoids_n_plus_one(
+    async_client: AsyncClient,
+    test_user: dict,
+    db_session: AsyncSession,
+):
+    """get_outfits uses selectinload to eagerly load outfit_items without per-outfit queries."""
+    from unittest.mock import patch
+    from app.services import outfit_service
+
+    i1 = await _create_clothing_item(db_session, test_user["user"].id, "Hat", "Accessories", "Beige")
+    i2 = await _create_clothing_item(db_session, test_user["user"].id, "Shirt", "Upper", "Grey")
+
+    # Create 3 distinct outfits
+    for idx in range(3):
+        await async_client.post(
+            "/outfits/",
+            headers=test_user["headers"],
+            json={"name": f"Batch Look {idx}", "clothing_item_ids": [str(i1.id), str(i2.id)]},
+        )
+
+    # Spy on _get_clothing_item_ids to verify it is NOT called inside get_outfits
+    with patch("app.services.outfit_service._get_clothing_item_ids") as mock_get_ids:
+        outfits = await outfit_service.get_outfits(db_session, test_user["user"].id)
+        assert not mock_get_ids.called
+
+    assert len(outfits) >= 3
+    for o in outfits:
+        assert len(o.clothing_item_ids) == 2
+        assert set(o.clothing_item_ids) == {i1.id, i2.id}

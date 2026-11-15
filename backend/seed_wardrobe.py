@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -11,11 +13,20 @@ USER_ID = UUID("540d05b0-671e-4ea6-a42b-a2ee9f33febc")
 
 
 async def seed_wardrobe():
-    data = json.loads(
-        (Path(__file__).parent / "sample_wardrobe.json").read_text(
-            encoding="utf-8"
+    env = os.environ.get("ENVIRONMENT", "development").strip().lower()
+    if env in ("production", "prod"):
+        print(
+            "Error: Seeding is blocked in production environment (ENVIRONMENT=production).",
+            file=sys.stderr,
         )
-    )
+        raise RuntimeError("Seeding is blocked in production environment.")
+
+    repo_root = Path(__file__).resolve().parent.parent
+    json_path = repo_root / "sample_wardrobe.json"
+    if not json_path.exists():
+        json_path = Path(__file__).resolve().parent / "sample_wardrobe.json"
+
+    data = json.loads(json_path.read_text(encoding="utf-8"))
 
     async with AsyncSession(engine) as db:
         items = [
@@ -37,4 +48,7 @@ async def seed_wardrobe():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_wardrobe())
+    try:
+        asyncio.run(seed_wardrobe())
+    except RuntimeError:
+        sys.exit(1)

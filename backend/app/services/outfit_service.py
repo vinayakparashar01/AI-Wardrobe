@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.clothing_item import ClothingItem
 from app.models.outfit import Outfit
@@ -108,17 +109,19 @@ async def get_outfits(
     result = await db.execute(
         select(Outfit)
         .where(Outfit.user_id == user_id)
+        .options(selectinload(Outfit.outfit_items))
         .order_by(Outfit.created_at.desc())
     )
 
     outfits = result.scalars().all()
-    responses = []
 
-    for outfit in outfits:
-        item_ids = await _get_clothing_item_ids(db, outfit.id)
-        responses.append(_to_response(outfit, item_ids))
-
-    return responses
+    return [
+        _to_response(
+            outfit,
+            [item.clothing_item_id for item in outfit.outfit_items],
+        )
+        for outfit in outfits
+    ]
 
 
 async def get_outfit(
