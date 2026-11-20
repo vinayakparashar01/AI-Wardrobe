@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     gemini_api_key: str
-    gemini_model: str
+    gemini_model: str = "gemini-3.8-flash"
 
     allowed_origins: str = "*"
 

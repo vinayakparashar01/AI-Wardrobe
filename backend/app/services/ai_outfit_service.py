@@ -101,29 +101,45 @@ Rules:
 
     client = genai.Client(api_key=settings.gemini_api_key)
 
+    primary_model = settings.gemini_model 
+    fallback_model = "gemini-3.8-flash"
+    models_to_try = [primary_model]
+    if primary_model != fallback_model:
+        models_to_try.append(fallback_model)
+
     response = None
-    for attempt in range(2):
+    for attempt, current_model in enumerate(models_to_try):
         try:
             response = await asyncio.wait_for(
                 client.aio.models.generate_content(
-                    model=settings.gemini_model,
+                    model=current_model,
                     contents=prompt,
                     config={
                         "response_mime_type": "application/json",
                         "response_schema": OutfitRecommendationResponse,
+                        "thinking_config": {"thinking_budget": 0},
                     },
                 ),
-                timeout=25.0,
+                timeout=45.0,
             )
             if response and response.text:
                 break
         except asyncio.TimeoutError:
-            logger.warning("Gemini API request timed out on attempt %d", attempt + 1)
-            if attempt < 1:
+            logger.warning(
+                "Gemini API request timed out on attempt %d using model %s",
+                attempt + 1,
+                current_model,
+            )
+            if attempt < len(models_to_try) - 1:
                 await asyncio.sleep(1.0)
         except Exception as exc:
-            logger.warning("Gemini API error on attempt %d: %s", attempt + 1, exc)
-            if attempt < 1:
+            logger.warning(
+                "Gemini API error on attempt %d using model %s: %s",
+                attempt + 1,
+                current_model,
+                exc,
+            )
+            if attempt < len(models_to_try) - 1:
                 await asyncio.sleep(1.0)
 
     if not response or not response.text:
